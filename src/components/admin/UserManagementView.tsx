@@ -19,7 +19,10 @@ import {
   Search,
   Filter,
   BadgeCheck,
-  Lock
+  Lock,
+  Cloud,
+  CloudUpload,
+  RefreshCw
 } from 'lucide-react';
 
 export default function UserManagementView() {
@@ -28,7 +31,9 @@ export default function UserManagementView() {
     usersList, 
     createOrUpdateUser, 
     deleteUserRecord, 
-    canManageRole 
+    canManageRole,
+    syncAllUsersToFirestore,
+    refreshUsersList
   } = useAuthContext();
 
   const { availableRegionsForFilter, availableGaragesForFilter } = useRouteContext();
@@ -36,6 +41,8 @@ export default function UserManagementView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   // Modal State for Add/Edit User
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -149,16 +156,44 @@ export default function UserManagementView() {
           </p>
         </div>
 
-        {assignableRoles.length > 0 && (
+        <div className="flex items-center space-x-2">
           <button
-            onClick={openAddModal}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+            onClick={async () => {
+              setIsSyncingCloud(true);
+              setSyncStatusMsg(null);
+              const res = await syncAllUsersToFirestore();
+              await refreshUsersList();
+              setIsSyncingCloud(false);
+              setSyncStatusMsg(`Saved ${res.count} users to Firestore 'users' collection.`);
+              setTimeout(() => setSyncStatusMsg(null), 4000);
+            }}
+            disabled={isSyncingCloud}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 shadow transition cursor-pointer disabled:opacity-50"
+            title="Force save all users to Firestore cloud database"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Add Team Member</span>
+            <CloudUpload className={`w-3.5 h-3.5 text-stagecoach-amber ${isSyncingCloud ? 'animate-bounce' : ''}`} />
+            <span>{isSyncingCloud ? 'Syncing...' : 'Sync Cloud DB'}</span>
           </button>
-        )}
+
+          {assignableRoles.length > 0 && (
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Add Team Member</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Sync Status Banner */}
+      {syncStatusMsg && (
+        <div className="p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 flex items-center space-x-2 animate-in fade-in duration-150">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{syncStatusMsg}</span>
+        </div>
+      )}
 
       {/* Visual Chain of Command Hierarchy */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">

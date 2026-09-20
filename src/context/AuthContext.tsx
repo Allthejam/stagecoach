@@ -143,6 +143,7 @@ interface AuthContextType {
   createOrUpdateUser: (userData: Partial<UserProfile> & { email: string; displayName: string }) => Promise<{ success: boolean; error?: string }>;
   deleteUserRecord: (uid: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsersList: () => Promise<void>;
+  syncAllUsersToFirestore: () => Promise<{ count: number }>;
   canManageRole: (targetRole: UserRole) => boolean;
 }
 
@@ -242,16 +243,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = d.data() as UserProfile;
         list.push({ ...data, uid: d.id });
       });
+      
       if (list.length > 0) {
         setUsersList(list);
         if (typeof window !== 'undefined') {
           localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(list));
+        }
+      } else {
+        // Automatically create and seed 'users' collection with Master Admin
+        const initialMaster: UserProfile = {
+          uid: 'master-01',
+          displayName: 'Allan (Master Admin)',
+          email: 'admin@stagecoach.co.uk',
+          role: 'master_admin',
+          region: 'All Regions',
+          depot: 'All Depots',
+          phone: '+44 (0) 141 555 0199',
+          assessorNumber: 'SC-HQ-001',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'users', 'master-01'), initialMaster, { merge: true });
+        setUsersList([initialMaster]);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(USERS_CACHE_KEY, JSON.stringify([initialMaster]));
         }
       }
     } catch (err) {
       console.warn('Could not refresh users list from Firestore:', err);
     }
   };
+
+  const syncAllUsersToFirestore = async (): Promise<{ count: number }> => {
+    if (!isFirebaseConfigured || !db) return { count: 0 };
+    try {
+      let savedCount = 0;
+      for (const u of usersList) {
+        await setDoc(doc(db, 'users', u.uid), u, { merge: true });
+        savedCount++;
+      }
+      return { count: savedCount };
+    } catch (err) {
+      console.error('Error syncing users to Firestore:', err);
+      return { count: 0 };
+    }
+  };
+
+  // Sync users collection on client mount
+  useEffect(() => {
+    refreshUsersList();
+  }, []);
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -558,6 +600,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createOrUpdateUser,
         deleteUserRecord,
         refreshUsersList,
+        syncAllUsersToFirestore,
         canManageRole
       }}
     >
