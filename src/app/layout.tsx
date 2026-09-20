@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { RouteProvider } from '@/context/RouteContext';
+import { AuthProvider } from '@/context/AuthContext';
 import Header from '@/components/common/Header';
 import MobileBottomNav from '@/components/common/MobileBottomNav';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import Toast from '@/components/common/Toast';
+import SideDrawer from '@/components/common/SideDrawer';
+import LoginModal from '@/components/auth/LoginModal';
 
 export const metadata: Metadata = {
   title: 'Stagecoach Route Risk Assessment & GPS Survey Platform',
@@ -38,16 +41,21 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-100 flex flex-col antialiased">
-        <RouteProvider>
-          <Header />
-          <main className="flex-1 w-full relative">
-            {children}
-          </main>
-          <MobileBottomNav />
-          <ConfirmModal />
-          <Toast />
-        </RouteProvider>
+        <AuthProvider>
+          <RouteProvider>
+            <Header />
+            <main className="flex-1 w-full relative">
+              {children}
+            </main>
+            <MobileBottomNav />
+            <SideDrawer />
+            <LoginModal />
+            <ConfirmModal />
+            <Toast />
+          </RouteProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

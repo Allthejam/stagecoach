@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouteContext, ActiveTab } from '@/context/RouteContext';
+import { useAuthContext } from '@/context/AuthContext';
 import { 
   Bus, 
   MapPin, 
@@ -12,10 +13,13 @@ import {
   Plus, 
   RotateCcw, 
   Wifi, 
-  Cloud,
-  Trash2,
-  Building2,
-  Warehouse
+  Cloud, 
+  Trash2, 
+  Building2, 
+  Warehouse,
+  Menu,
+  User as UserIcon,
+  Settings
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -40,6 +44,14 @@ export default function Header() {
     resetToCleanSlate
   } = useRouteContext();
 
+  const {
+    user,
+    operatorProfile,
+    setIsSideDrawerOpen,
+    setIsLoginModalOpen,
+    setActiveDrawerTab
+  } = useAuthContext();
+
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [modalRegion, setModalRegion] = useState('');
   const [modalDepot, setModalDepot] = useState('');
@@ -55,7 +67,7 @@ export default function Header() {
       modalTitle.trim(), 
       modalRegion.trim() || 'Region 1', 
       modalDepot.trim() || 'Main Depot',
-      modalAssessor.trim() || undefined
+      modalAssessor.trim() || operatorProfile.displayName || undefined
     );
     setModalRouteNumber('');
     setModalTitle('');
@@ -79,8 +91,17 @@ export default function Header() {
         {/* Top Corporate Bar */}
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5">
           
-          {/* Brand Logo & System Title */}
-          <div className="flex items-center space-x-2.5">
+          {/* Brand Logo & System Title + Hamburger Drawer Trigger */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsSideDrawerOpen(true)}
+              className="p-1.5 -ml-1 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
+              title="Open Operator & Fleet Side Menu"
+              aria-label="Open settings and fleet menu"
+            >
+              <Menu className="w-5 h-5 text-stagecoach-amber" />
+            </button>
+
             <div className="w-9 h-9 rounded-lg bg-stagecoach-amber flex items-center justify-center font-black text-lg shadow-md tracking-tighter text-white shrink-0">
               SC
             </div>
@@ -167,8 +188,9 @@ export default function Header() {
             {/* New Route Button */}
             <button
               onClick={() => {
-                setModalRegion(selectedRegionFilter || '');
-                setModalDepot(selectedGarageFilter || '');
+                setModalRegion(selectedRegionFilter || operatorProfile.region || '');
+                setModalDepot(selectedGarageFilter || operatorProfile.depot || '');
+                setModalAssessor(operatorProfile.displayName || '');
                 setIsNewModalOpen(true);
               }}
               className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors border border-blue-600"
@@ -177,6 +199,34 @@ export default function Header() {
               <Plus className="w-3.5 h-3.5 mr-1" />
               <span>New Route</span>
             </button>
+
+            {/* User / Operator Profile Button */}
+            {user ? (
+              <button
+                onClick={() => {
+                  setActiveDrawerTab('profile');
+                  setIsSideDrawerOpen(true);
+                }}
+                className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-medium transition-colors"
+                title="View Operator Profile & Regional Directory"
+              >
+                <div className="w-4 h-4 rounded-full bg-stagecoach-amber text-slate-950 font-black flex items-center justify-center text-[10px]">
+                  {operatorProfile.displayName ? operatorProfile.displayName.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <span className="hidden sm:inline max-w-[90px] truncate">
+                  {operatorProfile.displayName.split(' ')[0]}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsLoginModalOpen(true)}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 rounded-lg font-bold shadow transition-colors"
+                title="Sign in to Stagecoach Cloud"
+              >
+                <UserIcon className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
 
             {/* Sync Status Badge */}
             <div className="hidden lg:flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">
