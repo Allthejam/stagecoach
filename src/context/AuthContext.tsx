@@ -130,6 +130,11 @@ interface AuthContextType {
   setActiveDrawerTab: (tab: 'profile' | 'users' | 'contacts' | 'fleet' | 'sync' | 'security') => void;
   operatorProfile: OperatorProfile;
   usersList: UserProfile[];
+  activePerspectiveRole: UserRole | null;
+  effectiveRole: UserRole;
+  isMasterAdmin: boolean;
+  switchPerspective: (role: UserRole) => void;
+  resetPerspective: () => void;
   updateOperatorProfile: (updater: Partial<OperatorProfile>) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -152,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeDrawerTab, setActiveDrawerTab] = useState<'profile' | 'users' | 'contacts' | 'fleet' | 'sync' | 'security'>('profile');
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfile>(DEFAULT_PROFILE);
   const [usersList, setUsersList] = useState<UserProfile[]>(DEFAULT_USERS_LIST);
+  const [activePerspectiveRole, setActivePerspectiveRole] = useState<UserRole | null>(null);
 
   // Load client cached values after mount to eliminate SSR hydration mismatch
   useEffect(() => {
@@ -172,6 +178,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('Could not read local storage during hydration:', e);
     }
   }, []);
+
+  const isMasterAdmin = operatorProfile.role === 'master_admin' || operatorProfile.email === 'admin@stagecoach.co.uk' || operatorProfile.uid === 'master-01';
+  const effectiveRole = activePerspectiveRole || operatorProfile.role;
+
+  const switchPerspective = (newRole: UserRole) => {
+    if (newRole === 'master_admin') {
+      setActivePerspectiveRole(null);
+      setOperatorProfile((prev) => ({
+        ...prev,
+        role: 'master_admin',
+        displayName: 'Allan (Master Admin)',
+        region: 'All Regions',
+        depot: 'All Depots'
+      }));
+    } else if (newRole === 'regional_admin') {
+      setActivePerspectiveRole('regional_admin');
+      setOperatorProfile((prev) => ({
+        ...prev,
+        role: 'regional_admin',
+        displayName: 'Regional Director (Highlands)',
+        region: 'Highlands & Islands',
+        depot: 'Inverness HQ'
+      }));
+    } else if (newRole === 'depot_admin') {
+      setActivePerspectiveRole('depot_admin');
+      setOperatorProfile((prev) => ({
+        ...prev,
+        role: 'depot_admin',
+        displayName: 'Depot Manager (Aviemore)',
+        region: 'Highlands & Islands',
+        depot: 'Aviemore Depot'
+      }));
+    } else {
+      setActivePerspectiveRole('assessor');
+      setOperatorProfile((prev) => ({
+        ...prev,
+        role: 'assessor',
+        displayName: 'Field Assessor (Surveyor)',
+        region: 'Highlands & Islands',
+        depot: 'Aviemore Depot'
+      }));
+    }
+  };
+
+  const resetPerspective = () => {
+    setActivePerspectiveRole(null);
+    setOperatorProfile((prev) => ({
+      ...prev,
+      role: 'master_admin',
+      displayName: 'Allan (Master Admin)',
+      region: 'All Regions',
+      depot: 'All Depots'
+    }));
+  };
 
   const refreshUsersList = async () => {
     if (!isFirebaseConfigured || !db) return;
@@ -485,6 +545,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveDrawerTab,
         operatorProfile,
         usersList,
+        activePerspectiveRole,
+        effectiveRole,
+        isMasterAdmin,
+        switchPerspective,
+        resetPerspective,
         updateOperatorProfile,
         signIn,
         signOut,

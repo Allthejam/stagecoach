@@ -43,10 +43,18 @@ interface NavSection {
 
 export default function EnterpriseSidebar() {
   const pathname = usePathname();
-  const { operatorProfile, signOut, isAuthenticated, offlineGuestLogin } = useAuthContext();
+  const { 
+    operatorProfile, 
+    signOut, 
+    isAuthenticated, 
+    isMasterAdmin, 
+    effectiveRole, 
+    activePerspectiveRole, 
+    switchPerspective, 
+    resetPerspective 
+  } = useAuthContext();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [previewRole, setPreviewRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -54,10 +62,8 @@ export default function EnterpriseSidebar() {
 
   if (!mounted || !isAuthenticated) return null;
 
-  // Active role can be previewed if the user is Master Admin (CEO)
-  const isMasterAdmin = operatorProfile.role === 'master_admin';
-  const effectiveRole = previewRole || operatorProfile.role;
   const roleInfo = ROLE_LABELS[effectiveRole] || ROLE_LABELS.assessor;
+  const showRoleSwitcher = isMasterAdmin || activePerspectiveRole !== null;
 
   // Role-Specific Navigation Structures
   const getRoleSections = (role: UserRole): NavSection[] => {
@@ -151,19 +157,6 @@ export default function EnterpriseSidebar() {
 
   const sections = getRoleSections(effectiveRole);
 
-  const handleRoleSwitch = (newRole: UserRole) => {
-    setPreviewRole(newRole);
-    if (newRole === 'master_admin') {
-      offlineGuestLogin('Allan (Master Admin)', 'master_admin', 'All Regions', 'All Depots');
-    } else if (newRole === 'regional_admin') {
-      offlineGuestLogin('Regional Director (Highlands)', 'regional_admin', 'Highlands & Islands', 'Inverness HQ');
-    } else if (newRole === 'depot_admin') {
-      offlineGuestLogin('Depot Manager (Aviemore)', 'depot_admin', 'Highlands & Islands', 'Aviemore Depot');
-    } else {
-      offlineGuestLogin('Field Assessor (Surveyor)', 'assessor', 'Highlands & Islands', 'Aviemore Depot');
-    }
-  };
-
   return (
     <>
       {/* Mobile Top Bar with Menu Hamburger */}
@@ -252,18 +245,28 @@ export default function EnterpriseSidebar() {
           </div>
 
           {/* Master Admin / CEO Perspective Switcher */}
-          {isMasterAdmin && (
+          {showRoleSwitcher && (
             <div className="mt-3 pt-2.5 border-t border-slate-800/80">
-              <div className="flex items-center space-x-1.5 mb-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                <Crown className="w-3 h-3" />
-                <span>CEO Perspective Mode</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center space-x-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                  <Crown className="w-3 h-3" />
+                  <span>Perspective Mode</span>
+                </div>
+                {activePerspectiveRole && (
+                  <button
+                    onClick={() => resetPerspective()}
+                    className="text-[9px] text-amber-300 hover:text-white underline font-semibold"
+                  >
+                    Reset to CEO
+                  </button>
+                )}
               </div>
               <select
                 value={effectiveRole}
-                onChange={(e) => handleRoleSwitch(e.target.value as UserRole)}
-                className="w-full bg-slate-950 border border-amber-500/30 rounded-lg text-[11px] text-amber-200 px-2 py-1.5 font-bold focus:ring-1 focus:ring-amber-400 focus:outline-none"
+                onChange={(e) => switchPerspective(e.target.value as UserRole)}
+                className="w-full bg-slate-950 border border-amber-500/40 rounded-lg text-[11px] text-amber-200 px-2 py-1.5 font-bold focus:ring-1 focus:ring-amber-400 focus:outline-none cursor-pointer"
               >
-                <option value="master_admin">👑 Master Admin (CEO)</option>
+                <option value="master_admin">👑 Master Admin (CEO / HQ)</option>
                 <option value="regional_admin">🏢 Regional Admin View</option>
                 <option value="depot_admin">🚌 Depot Admin View</option>
                 <option value="assessor">📋 RRA Assessor View</option>
