@@ -15,8 +15,7 @@ import {
   Cloud,
   Trash2,
   Building2,
-  Warehouse,
-  FolderOpen
+  Warehouse
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -38,8 +37,7 @@ export default function Header() {
     createNewRoute,
     showConfirmModal,
     deleteCurrentRoute,
-    resetToCleanSlate,
-    loadSampleTemplateRoutes
+    resetToCleanSlate
   } = useRouteContext();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -99,7 +97,7 @@ export default function Header() {
             </div>
           </div>
 
-          {/* 3-Tier Cascading Filter Toolbar (Derived 100% from Database) */}
+          {/* 3-Tier Cascading Filter Toolbar (100% Database Driven) */}
           <div className="flex items-center flex-wrap gap-2 text-xs">
             
             {/* TIER 1: Region Selector Dropdown */}
@@ -207,29 +205,12 @@ export default function Header() {
               <span className="hidden xl:inline">PDF</span>
             </button>
 
-            {/* Load Samples / Template Button */}
-            <button
-              onClick={() => {
-                showConfirmModal({
-                  title: 'Load Scottish Highlands Templates?',
-                  message: 'This will import 3 reference Highland routes (Route 37 Aviemore, Route 11 Inverness, Route N44 Fort William) for testing.',
-                  confirmText: 'Load Templates',
-                  isDestructive: false,
-                  onConfirm: () => loadSampleTemplateRoutes(),
-                });
-              }}
-              className="p-1.5 text-slate-400 hover:text-stagecoach-amber rounded-lg hover:bg-slate-800 transition-colors"
-              title="Load Scottish Highlands Sample Templates"
-            >
-              <FolderOpen className="w-3.5 h-3.5" />
-            </button>
-
             {/* Clear All / Clean Slate */}
             <button
               onClick={() => {
                 showConfirmModal({
                   title: 'Clear All Routes (Clean Slate)?',
-                  message: 'This will clear all route assessments from memory so you can test starting completely from scratch.',
+                  message: 'This will erase all route assessments from memory so you start completely fresh.',
                   confirmText: 'Clear All Routes',
                   isDestructive: true,
                   onConfirm: () => resetToCleanSlate(),
@@ -295,7 +276,7 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Modal: New Route Assessment with Free-Text Typing & Dynamic Datalist */}
+      {/* Modal: New Route Assessment with Free-Text Typing */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
@@ -305,7 +286,7 @@ export default function Header() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">New Route Assessment</h3>
-                <p className="text-xs text-slate-500">Type your Operating Region and Depot to build the database</p>
+                <p className="text-xs text-slate-500">Type your Operating Region & Depot to build your live database</p>
               </div>
             </div>
 
@@ -316,7 +297,7 @@ export default function Header() {
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-slate-700">Operating Region *</label>
                   {availableRegionsForFilter.length > 0 && (
-                    <span className="text-[10px] text-slate-400">Type new or pick existing ({availableRegionsForFilter.length})</span>
+                    <span className="text-[10px] text-slate-400">Pick existing ({availableRegionsForFilter.length}) or type new</span>
                   )}
                 </div>
                 <input
@@ -342,7 +323,7 @@ export default function Header() {
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-slate-700">Operating Garage / Depot *</label>
                   {availableGaragesForFilter.length > 0 && (
-                    <span className="text-[10px] text-slate-400">Type new or pick existing ({availableGaragesForFilter.length})</span>
+                    <span className="text-[10px] text-slate-400">Pick existing ({availableGaragesForFilter.length}) or type new</span>
                   )}
                 </div>
                 <input

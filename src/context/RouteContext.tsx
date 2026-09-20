@@ -7,8 +7,7 @@ import {
   getAllRoutes, 
   saveRoute, 
   deleteRoute as deleteRouteApi, 
-  resetMockData as resetMockDataApi,
-  loadSampleTemplates as loadSampleTemplatesApi 
+  resetMockData as resetMockDataApi
 } from '@/lib/firestore';
 import { calculateTotalRouteDistanceKm, calculateEstimatedRunningTime } from '@/lib/calculations';
 
@@ -47,7 +46,6 @@ interface RouteContextType {
   createNewRoute: (routeNumber: string, routeTitle: string, region: string, depot: string, assessorName?: string) => void;
   deleteCurrentRoute: () => Promise<void>;
   resetToCleanSlate: () => void;
-  loadSampleTemplateRoutes: () => Promise<void>;
   
   // Pending placement coordinates for modals
   pendingCoords: [number, number] | null;
@@ -346,18 +344,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     setCurrentRouteId('');
     setSelectedRegionFilterState('');
     setSelectedGarageFilterState('');
-    showToast('Cleared all routes - Database is empty and ready');
-  };
-
-  const loadSampleTemplateRoutes = async () => {
-    const templates = await loadSampleTemplatesApi();
-    setRoutes(templates);
-    if (templates.length > 0) {
-      setSelectedRegionFilterState('Stagecoach Highlands');
-      setSelectedGarageFilterState('Aviemore');
-      setCurrentRouteId(templates[0].id);
-    }
-    showToast('Loaded Scottish Highlands reference routes');
+    showToast('Cleared all routes - Database is clean and empty');
   };
 
   // GIS Path Operations
@@ -445,7 +432,6 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         createNewRoute,
         deleteCurrentRoute,
         resetToCleanSlate,
-        loadSampleTemplateRoutes,
         pendingCoords,
         setPendingCoords,
         pendingStopType,

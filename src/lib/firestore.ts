@@ -3,13 +3,11 @@ import {
   collection, 
   doc, 
   getDocs, 
-  getDoc, 
   setDoc, 
-  deleteDoc, 
-  onSnapshot 
+  deleteDoc 
 } from 'firebase/firestore';
 import { RouteAssessment } from '@/types/route';
-import { initialMockRoutes, sampleHighlandsRoutes } from './mockData';
+import { initialMockRoutes } from './mockData';
 
 const LOCAL_STORAGE_KEY = 'stagecoach_rra_live_v4';
 
@@ -112,23 +110,4 @@ export function resetMockData(): RouteAssessment[] {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
   }
   return [];
-}
-
-/**
- * Load Sample Highlands Routes for testing/demo purposes
- */
-export async function loadSampleTemplates(): Promise<RouteAssessment[]> {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sampleHighlandsRoutes));
-  }
-  if (isFirebaseConfigured && db) {
-    try {
-      for (const r of sampleHighlandsRoutes) {
-        await setDoc(doc(db, 'routes', r.id), r, { merge: true });
-      }
-    } catch (err) {
-      console.warn('Failed syncing sample templates to Firestore', err);
-    }
-  }
-  return sampleHighlandsRoutes;
 }

@@ -13,7 +13,6 @@ import {
   AlertTriangle, 
   ShieldCheck, 
   Plus, 
-  FolderOpen, 
   RotateCcw,
   Sparkles,
   Layers,
@@ -45,8 +44,7 @@ export default function HomePage() {
     setSelectedGarageFilter,
     availableRegionsForFilter,
     availableGaragesForFilter,
-    createNewRoute,
-    loadSampleTemplateRoutes 
+    createNewRoute 
   } = useRouteContext();
 
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
@@ -123,7 +121,7 @@ export default function HomePage() {
           <div className="max-w-2xl relative z-10 space-y-4">
             <div className="inline-flex items-center space-x-2 bg-stagecoach-amber/20 border border-stagecoach-amber/40 px-3 py-1 rounded-full text-xs font-bold text-stagecoach-amber">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Clean Database Ready</span>
+              <span>Live Database Connected</span>
             </div>
             
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
@@ -131,7 +129,7 @@ export default function HomePage() {
             </h1>
             
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine. Type any Operating Region and Depot below to start building your network.
+              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine. Create your first route assessment to establish your network database.
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
@@ -146,14 +144,6 @@ export default function HomePage() {
                 <Plus className="w-5 h-5" />
                 <span>Create First Route Assessment</span>
               </button>
-
-              <button
-                onClick={() => loadSampleTemplateRoutes()}
-                className="px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-sm rounded-xl border border-white/20 transition flex items-center space-x-2 cursor-pointer backdrop-blur-sm"
-              >
-                <FolderOpen className="w-4 h-4 text-stagecoach-amber" />
-                <span>Load Scottish Highlands Templates</span>
-              </button>
             </div>
           </div>
         </div>
@@ -164,9 +154,9 @@ export default function HomePage() {
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-stagecoach-blue">
               <Compass className="w-5 h-5" />
             </div>
-            <h3 className="font-bold text-slate-900 text-base">100% Database-Driven Filters</h3>
+            <h3 className="font-bold text-slate-900 text-base">Database-Driven Filters</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              The Region and Depot dropdowns in the header populate dynamically from the routes you create in your database.
+              The Region and Depot dropdowns in the header populate automatically from your real surveys stored in the database.
             </p>
           </div>
 
@@ -201,7 +191,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Create Route Assessment</h3>
-                  <p className="text-xs text-slate-500">Type your Operating Region & Depot to add them to your database</p>
+                  <p className="text-xs text-slate-500">Type your Operating Region & Depot to add them to your live database</p>
                 </div>
               </div>
 
@@ -217,7 +207,7 @@ export default function HomePage() {
                     type="text"
                     required
                     list="landing-modal-regions"
-                    placeholder="e.g. Stagecoach West, Stagecoach London, Stagecoach Highlands..."
+                    placeholder="e.g. Stagecoach West, Stagecoach Highlands, Stagecoach London..."
                     value={initRegion}
                     onChange={(e) => setInitRegion(e.target.value)}
                     className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
