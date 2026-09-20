@@ -1,4 +1,4 @@
-﻿export type StopType = 'bus_stop' | 'popup_stop' | 'junction' | 'roadworks' | 'other';
+export type StopType = 'bus_stop' | 'popup_stop' | 'junction' | 'roadworks' | 'other';
 
 export interface RouteStop {
   id: string;
@@ -61,11 +61,11 @@ export interface VehicleRestrictions {
 export interface GovernanceSignOff {
   assessorName: string;
   assessorRole: string;
-  assessorSignature?: string; // base64 data url
+  assessorSignature?: string;
   assessorDate?: string;
   managerName: string;
   managerRole: string;
-  managerSignature?: string; // base64 data url
+  managerSignature?: string;
   managerDate?: string;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
   reviewComments?: string;
@@ -75,7 +75,8 @@ export interface RouteAssessment {
   id: string;
   routeNumber: string;
   routeTitle: string;
-  depot: string;
+  region: string; // e.g. Stagecoach Highlands, Stagecoach Manchester
+  depot: string;  // Garage / Depot (e.g. Aviemore, Inverness, Hyde Road)
   operatingCompany: string;
   assessorName: string;
   assessmentDate: string;
@@ -109,3 +110,71 @@ export type GisToolMode =
   | 'drop_roadworks'
   | 'drop_other'
   | 'drop_hazard';
+
+export interface StagecoachRegionInfo {
+  regionName: string;
+  garages: string[];
+}
+
+export const STAGECOACH_UK_REGIONS: StagecoachRegionInfo[] = [
+  {
+    regionName: 'Stagecoach Highlands',
+    garages: ['Aviemore', 'Inverness (Seafield)', 'Fort William', 'Skye (Portree)', 'Thurso', 'Tain', 'Orkney (Kirkwall)']
+  },
+  {
+    regionName: 'Stagecoach East Scotland',
+    garages: ['Dundee', 'Perth', 'Dunfermline', 'Glenrothes', 'St Andrews', 'Arbroath', 'Blairgowrie']
+  },
+  {
+    regionName: 'Stagecoach West Scotland',
+    garages: ['Glasgow (Cumbernauld)', 'Ayr', 'Kilmarnock', 'Dumfries', 'Ardrossan', 'Stranraer']
+  },
+  {
+    regionName: 'Stagecoach Manchester & Wigan',
+    garages: ['Manchester (Hyde Road)', 'Manchester (Sharston)', 'Stockport (Daw Bank)', 'Middleton', 'Wigan']
+  },
+  {
+    regionName: 'Stagecoach Merseyside & South Lancashire',
+    garages: ['Liverpool (Gillmoss)', 'Chester', 'Birkenhead (Rock Ferry)', 'Preston']
+  },
+  {
+    regionName: 'Stagecoach Cumbria & North Lancashire',
+    garages: ['Carlisle', 'Kendal', 'Lancaster', 'Barrow-in-Furness', 'Workington', 'Penrith']
+  },
+  {
+    regionName: 'Stagecoach North East',
+    garages: ['Newcastle (Walkergate)', 'Newcastle (Slatyford)', 'Sunderland (Wheatsheaf)', 'South Shields', 'Hartlepool', 'Stockton']
+  },
+  {
+    regionName: 'Stagecoach Yorkshire',
+    garages: ['Sheffield (Holbrook)', 'Sheffield (Ecclesfield)', 'Barnsley', 'Chesterfield', 'Rawmarsh']
+  },
+  {
+    regionName: 'Stagecoach East Midlands',
+    garages: ['Lincoln', 'Hull', 'Grimsby', 'Scunthorpe', 'Mansfield', 'Worksop', 'Gainsborough', 'Skegness']
+  },
+  {
+    regionName: 'Stagecoach Midlands',
+    garages: ['Northampton', 'Leamington Spa', 'Rugby', 'Nuneaton', 'Kettering', 'Corby']
+  },
+  {
+    regionName: 'Stagecoach East',
+    garages: ['Cambridge (Cowley Road)', 'Peterborough', 'Bedford', 'Fenstanton']
+  },
+  {
+    regionName: 'Stagecoach South',
+    garages: ['Portsmouth', 'Winchester', 'Basingstoke', 'Andover', 'Worthing', 'Chichester', 'Aldershot']
+  },
+  {
+    regionName: 'Stagecoach South East',
+    garages: ['Canterbury', 'Dover', 'Folkestone', 'Ashford', 'Thanet (Broadstairs)', 'Hastings', 'Eastbourne', 'Herne Bay']
+  },
+  {
+    regionName: 'Stagecoach South West',
+    garages: ['Exeter (Matford)', 'Torquay', 'Plymouth', 'Barnstaple', 'Exmouth', 'Newton Abbot']
+  },
+  {
+    regionName: 'Stagecoach Wales (De Cymru)',
+    garages: ['Cardiff', 'Cwmbran', 'Blackwood', 'Merthyr Tydfil', 'Aberdare', 'Brynmawr', 'Porth']
+  }
+];

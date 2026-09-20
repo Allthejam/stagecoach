@@ -1,4 +1,4 @@
-﻿import { db, isFirebaseConfigured } from './firebase';
+import { db, isFirebaseConfigured } from './firebase';
 import { 
   collection, 
   doc, 
@@ -9,9 +9,9 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 import { RouteAssessment } from '@/types/route';
-import { initialMockRoutes } from './mockData';
+import { initialMockRoutes, sampleHighlandsRoutes } from './mockData';
 
-const LOCAL_STORAGE_KEY = 'stagecoach_rra_highlands_v3';
+const LOCAL_STORAGE_KEY = 'stagecoach_rra_live_v4';
 
 /**
  * Get all routes (from Firestore if configured, or LocalStorage)
@@ -37,14 +37,14 @@ export async function getAllRoutes(): Promise<RouteAssessment[]> {
   // LocalStorage fallback
   try {
     const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (localData) {
+    if (localData !== null) {
       return JSON.parse(localData);
     }
   } catch (e) {
     console.error('Error loading routes from LocalStorage:', e);
   }
 
-  // Seed default Highlands mock routes
+  // Initial clean slate
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialMockRoutes));
   return initialMockRoutes;
 }
@@ -105,11 +105,30 @@ export async function deleteRoute(routeId: string): Promise<void> {
 }
 
 /**
- * Reset data back to default Scottish Highlands corporate mock routes
+ * Clear all routes (clean slate)
  */
 export function resetMockData(): RouteAssessment[] {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialMockRoutes));
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
   }
-  return initialMockRoutes;
+  return [];
+}
+
+/**
+ * Load Sample Highlands Routes for testing/demo purposes
+ */
+export async function loadSampleTemplates(): Promise<RouteAssessment[]> {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sampleHighlandsRoutes));
+  }
+  if (isFirebaseConfigured && db) {
+    try {
+      for (const r of sampleHighlandsRoutes) {
+        await setDoc(doc(db, 'routes', r.id), r, { merge: true });
+      }
+    } catch (err) {
+      console.warn('Failed syncing sample templates to Firestore', err);
+    }
+  }
+  return sampleHighlandsRoutes;
 }

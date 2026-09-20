@@ -1,9 +1,15 @@
-﻿"use client";
+"use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { RouteAssessment, GisToolMode, HazardObservation, RouteStop, StopType } from '@/types/route';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { RouteAssessment, GisToolMode, HazardObservation, RouteStop, StopType, STAGECOACH_UK_REGIONS } from '@/types/route';
 import { initialMockRoutes } from '@/lib/mockData';
-import { getAllRoutes, saveRoute, deleteRoute as deleteRouteApi, resetMockData as resetMockDataApi } from '@/lib/firestore';
+import { 
+  getAllRoutes, 
+  saveRoute, 
+  deleteRoute as deleteRouteApi, 
+  resetMockData as resetMockDataApi,
+  loadSampleTemplates as loadSampleTemplatesApi 
+} from '@/lib/firestore';
 import { calculateTotalRouteDistanceKm, calculateEstimatedRunningTime } from '@/lib/calculations';
 
 export type ActiveTab = 'map' | 'hazards' | 'fleet' | 'driver' | 'governance';
@@ -19,6 +25,7 @@ export interface ConfirmModalState {
 
 interface RouteContextType {
   routes: RouteAssessment[];
+  filteredRoutes: RouteAssessment[];
   currentRouteId: string;
   currentRoute: RouteAssessment | null;
   activeTab: ActiveTab;
@@ -26,11 +33,20 @@ interface RouteContextType {
   gisToolMode: GisToolMode;
   setGisToolMode: (mode: GisToolMode) => void;
   selectRoute: (id: string) => void;
+  
+  // 3-Tier Cascading Filter State
+  selectedRegionFilter: string;
+  setSelectedRegionFilter: (region: string) => void;
+  selectedGarageFilter: string;
+  setSelectedGarageFilter: (garage: string) => void;
+  availableGaragesForFilter: string[];
+  
   updateCurrentRoute: (updater: (prev: RouteAssessment) => RouteAssessment) => void;
   saveCurrentRoute: () => Promise<void>;
-  createNewRoute: (routeNumber: string, routeTitle: string, depot: string) => void;
+  createNewRoute: (routeNumber: string, routeTitle: string, region: string, depot: string, assessorName?: string) => void;
   deleteCurrentRoute: () => Promise<void>;
-  resetToMockData: () => void;
+  resetToCleanSlate: () => void;
+  loadSampleTemplateRoutes: () => Promise<void>;
   
   // Pending placement coordinates for modals
   pendingCoords: [number, number] | null;
@@ -76,12 +92,15 @@ interface RouteContextType {
 const RouteContext = createContext<RouteContextType | undefined>(undefined);
 
 export function RouteProvider({ children }: { children: ReactNode }) {
-  // Pre-seed with mock routes for instant synchronous rendering
   const [routes, setRoutes] = useState<RouteAssessment[]>(initialMockRoutes);
   const [currentRouteId, setCurrentRouteId] = useState<string>(initialMockRoutes[0]?.id || '');
   const [activeTab, setActiveTab] = useState<ActiveTab>('map');
   const [gisToolMode, setGisToolMode] = useState<GisToolMode>('browse');
   const [tileLayer, setTileLayer] = useState<'osm' | 'satellite'>('osm');
+  
+  // Cascading Filter States
+  const [selectedRegionFilter, setSelectedRegionFilterState] = useState<string>('');
+  const [selectedGarageFilter, setSelectedGarageFilterState] = useState<string>('');
   
   const [pendingCoords, setPendingCoords] = useState<[number, number] | null>(null);
   const [pendingStopType, setPendingStopType] = useState<StopType | null>(null);
@@ -108,18 +127,71 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function load() {
       const data = await getAllRoutes();
-      if (data && data.length > 0) {
+      if (data) {
         setRoutes(data);
-        setCurrentRouteId((prev) => {
-          if (data.some((r) => r.id === prev)) return prev;
-          return data[0].id;
-        });
+        if (data.length > 0) {
+          setCurrentRouteId((prev) => {
+            if (data.some((r) => r.id === prev)) return prev;
+            return data[0].id;
+          });
+        } else {
+          setCurrentRouteId('');
+        }
       }
     }
     load();
   }, []);
 
-  const currentRoute = routes.find((r) => r.id === currentRouteId) || routes[0] || null;
+  // Compute available garages for currently selected region
+  const availableGaragesForFilter = useMemo(() => {
+    if (!selectedRegionFilter) {
+      // Return unique list of all garages across all regions
+      const allGarages = STAGECOACH_UK_REGIONS.flatMap(r => r.garages);
+      return Array.from(new Set(allGarages)).sort();
+    }
+    const regionObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === selectedRegionFilter);
+    return regionObj ? [...regionObj.garages].sort() : [];
+  }, [selectedRegionFilter]);
+
+  // Handle region filter change with auto garage validation
+  const setSelectedRegionFilter = (region: string) => {
+    setSelectedRegionFilterState(region);
+    if (!region) {
+      // Reset garage filter
+      setSelectedGarageFilterState('');
+    } else {
+      const regionObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === region);
+      if (regionObj && selectedGarageFilter && !regionObj.garages.includes(selectedGarageFilter)) {
+        setSelectedGarageFilterState('');
+      }
+    }
+  };
+
+  const setSelectedGarageFilter = (garage: string) => {
+    setSelectedGarageFilterState(garage);
+  };
+
+  // Filter routes based on 3-tier cascading selections
+  const filteredRoutes = useMemo(() => {
+    return routes.filter(r => {
+      const matchRegion = !selectedRegionFilter || r.region === selectedRegionFilter || (!r.region && selectedRegionFilter === 'Stagecoach Highlands');
+      const matchGarage = !selectedGarageFilter || r.depot?.toLowerCase().includes(selectedGarageFilter.toLowerCase()) || r.depot === selectedGarageFilter;
+      return matchRegion && matchGarage;
+    });
+  }, [routes, selectedRegionFilter, selectedGarageFilter]);
+
+  // Keep currentRoute in sync with filtered list
+  useEffect(() => {
+    if (filteredRoutes.length > 0) {
+      if (!filteredRoutes.some(r => r.id === currentRouteId)) {
+        setCurrentRouteId(filteredRoutes[0].id);
+      }
+    } else if (routes.length === 0) {
+      setCurrentRouteId('');
+    }
+  }, [filteredRoutes, currentRouteId, routes.length]);
+
+  const currentRoute = routes.find((r) => r.id === currentRouteId) || filteredRoutes[0] || null;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -141,7 +213,10 @@ export function RouteProvider({ children }: { children: ReactNode }) {
 
   const selectRoute = (id: string) => {
     setCurrentRouteId(id);
-    showToast(`Switched to Route ${routes.find((r) => r.id === id)?.routeNumber || id}`);
+    const target = routes.find((r) => r.id === id);
+    if (target) {
+      showToast(`Switched to Route ${target.routeNumber} (${target.region || 'UK Network'})`);
+    }
   };
 
   const updateCurrentRoute = (updater: (prev: RouteAssessment) => RouteAssessment) => {
@@ -170,14 +245,25 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createNewRoute = (routeNumber: string, routeTitle: string, depot: string) => {
+  const createNewRoute = (
+    routeNumber: string, 
+    routeTitle: string, 
+    region: string, 
+    depot: string, 
+    assessorName?: string
+  ) => {
+    const defaultRegion = region || 'Stagecoach Highlands';
+    const defaultDepot = depot || 'Aviemore Depot';
+    const assessor = assessorName || 'Field Route Assessor';
+
     const newRoute: RouteAssessment = {
       id: `SC-RRA-${Date.now().toString(36).toUpperCase()}`,
       routeNumber: routeNumber || 'New Route',
-      routeTitle: routeTitle || 'New Survey Route',
-      depot: depot || 'Depot',
-      operatingCompany: 'Stagecoach',
-      assessorName: 'Field Assessor',
+      routeTitle: routeTitle || 'New Survey Corridor',
+      region: defaultRegion,
+      depot: defaultDepot,
+      operatingCompany: defaultRegion,
+      assessorName: assessor,
       assessmentDate: new Date().toISOString().split('T')[0],
       reviewDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
       status: 'Draft',
@@ -192,10 +278,10 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         doubleDeckerAllowed: true,
         coachAllowed: true,
         evAllowed: true,
-        notes: 'Initial survey clearance pending'
+        notes: 'Initial clearance survey required'
       },
       governance: {
-        assessorName: 'Field Assessor',
+        assessorName: assessor,
         assessorRole: 'Route Risk Assessor',
         managerName: 'Operations Safety Manager',
         managerRole: 'Head of Operations',
@@ -206,9 +292,16 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     };
 
     setRoutes((prev) => [newRoute, ...prev]);
+    // Set filters to match the newly created route so it displays immediately
+    if (selectedRegionFilter && selectedRegionFilter !== defaultRegion) {
+      setSelectedRegionFilterState(defaultRegion);
+    }
+    if (selectedGarageFilter && selectedGarageFilter !== defaultDepot) {
+      setSelectedGarageFilterState(defaultDepot);
+    }
     setCurrentRouteId(newRoute.id);
     saveRoute(newRoute);
-    showToast(`Created new Route ${newRoute.routeNumber}`);
+    showToast(`Created Route ${newRoute.routeNumber} (${defaultRegion} - ${defaultDepot})`);
   };
 
   const deleteCurrentRoute = async () => {
@@ -219,19 +312,32 @@ export function RouteProvider({ children }: { children: ReactNode }) {
       const remaining = prev.filter((r) => r.id !== toDeleteId);
       if (remaining.length > 0) {
         setCurrentRouteId(remaining[0].id);
+      } else {
+        setCurrentRouteId('');
       }
       return remaining;
     });
     showToast('Route deleted');
   };
 
-  const resetToMockData = () => {
-    const data = resetMockDataApi();
-    setRoutes(data);
-    if (data.length > 0) {
-      setCurrentRouteId(data[0].id);
+  const resetToCleanSlate = () => {
+    resetMockDataApi();
+    setRoutes([]);
+    setCurrentRouteId('');
+    setSelectedRegionFilterState('');
+    setSelectedGarageFilterState('');
+    showToast('Cleared all routes - Clean slate ready for testing');
+  };
+
+  const loadSampleTemplateRoutes = async () => {
+    const templates = await loadSampleTemplatesApi();
+    setRoutes(templates);
+    if (templates.length > 0) {
+      setSelectedRegionFilterState('Stagecoach Highlands');
+      setSelectedGarageFilterState('Aviemore');
+      setCurrentRouteId(templates[0].id);
     }
-    showToast('Reset to corporate Stagecoach mock routes');
+    showToast('Loaded Scottish Highlands reference routes');
   };
 
   // GIS Path Operations
@@ -300,6 +406,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     <RouteContext.Provider
       value={{
         routes,
+        filteredRoutes,
         currentRouteId,
         currentRoute,
         activeTab,
@@ -307,11 +414,17 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         gisToolMode,
         setGisToolMode,
         selectRoute,
+        selectedRegionFilter,
+        setSelectedRegionFilter,
+        selectedGarageFilter,
+        setSelectedGarageFilter,
+        availableGaragesForFilter,
         updateCurrentRoute,
         saveCurrentRoute,
         createNewRoute,
         deleteCurrentRoute,
-        resetToMockData,
+        resetToCleanSlate,
+        loadSampleTemplateRoutes,
         pendingCoords,
         setPendingCoords,
         pendingStopType,

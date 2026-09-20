@@ -396,7 +396,7 @@ export default function LeafletMap() {
                 </h2>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                <strong>Depot:</strong> {currentRoute?.depot} • <strong>OpCo:</strong> {currentRoute?.operatingCompany} • <strong>Surveyor:</strong> {currentRoute?.assessorName}
+                <strong>Region:</strong> {currentRoute?.region || currentRoute?.operatingCompany} • <strong>Garage:</strong> {currentRoute?.depot} • <strong>Surveyor:</strong> {currentRoute?.assessorName} • <strong>Date:</strong> {currentRoute?.assessmentDate}
               </p>
             </div>
 

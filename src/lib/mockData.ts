@@ -1,11 +1,15 @@
-﻿import { RouteAssessment } from '@/types/route';
+import { RouteAssessment } from '@/types/route';
 
-export const initialMockRoutes: RouteAssessment[] = [
+/**
+ * Scottish Highlands Sample Templates (For reference or on-demand template import)
+ */
+export const sampleHighlandsRoutes: RouteAssessment[] = [
   {
     id: 'route-133',
     routeNumber: '133',
     routeTitle: 'Grantown-on-Spey – Advie – Cromdale Circular',
-    depot: 'Aviemore / Inverness Depot',
+    region: 'Stagecoach Highlands',
+    depot: 'Aviemore',
     operatingCompany: 'Stagecoach Highlands',
     assessorName: 'C. Bell (Senior Route Assessor)',
     assessmentDate: '2026-04-13',
@@ -216,7 +220,8 @@ export const initialMockRoutes: RouteAssessment[] = [
     id: 'route-11',
     routeNumber: '11',
     routeTitle: 'Inverness Bus Station – Inverness Airport – Nairn',
-    depot: 'Inverness Depot (Seafield)',
+    region: 'Stagecoach Highlands',
+    depot: 'Inverness (Seafield)',
     operatingCompany: 'Stagecoach Highlands',
     assessorName: 'D. Fraser (Route Risk Lead)',
     assessmentDate: '2026-03-20',
@@ -226,11 +231,11 @@ export const initialMockRoutes: RouteAssessment[] = [
     estimatedRunningTimeMin: 48,
     averageSpeedKph: 38,
     pathCoordinates: [
-      [57.4815, -4.2255], // Inverness Bus Station
-      [57.4850, -4.2000], // Millburn Academy
-      [57.4930, -4.1300], // Inverness Retail Park / A96
-      [57.5350, -4.0500], // Inverness Airport Terminal
-      [57.5850, -3.8750]  // Nairn Bus Station
+      [57.4815, -4.2255],
+      [57.4850, -4.2000],
+      [57.4930, -4.1300],
+      [57.5350, -4.0500],
+      [57.5850, -3.8750]
     ],
     stops: [
       {
@@ -240,7 +245,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.4815,
         lng: -4.2255,
         dwellMinutes: 3,
-        notes: 'Main departure stance and luggage loading',
         order: 1
       },
       {
@@ -250,7 +254,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.4850,
         lng: -4.2000,
         dwellMinutes: 1,
-        notes: 'School & commuter interchange',
         order: 2
       },
       {
@@ -260,7 +263,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.4930,
         lng: -4.1300,
         dwellMinutes: 1.5,
-        notes: 'High passenger boarding point on A96',
         order: 3
       },
       {
@@ -270,7 +272,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.5350,
         lng: -4.0500,
         dwellMinutes: 3,
-        notes: 'Terminal forecourt loop with baggage dwell',
         order: 4
       },
       {
@@ -280,7 +281,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.5850,
         lng: -3.8750,
         dwellMinutes: 2,
-        notes: 'Terminus layover bay',
         order: 5
       }
     ],
@@ -300,8 +300,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         residualScore: 2,
         controlMeasures: '1. Max speed 10mph in terminal loop.\n2. Hazard 4-way flashers when reversing or maneuvering at stand.',
         speedLimitMph: 10,
-        assessorNotes: 'Tight radius loop with luggage trolleys and passengers walking across transit lanes.',
-        photos: ['https://images.unsplash.com/photo-1542296332-2e4473faf563?w=800&auto=format&fit=crop&q=80'],
         timestamp: '2026-03-20T10:00:00Z'
       }
     ],
@@ -310,21 +308,14 @@ export const initialMockRoutes: RouteAssessment[] = [
       doubleDeckerAllowed: true,
       coachAllowed: true,
       evAllowed: true,
-      minTurningRadiusM: 12.5,
-      maxAxleWeightTonnes: 18.0,
-      notes: 'Full clearance on A96 corridor. Double Deckers and Yutong E10/E12 Electric Fleet approved for airport charging bays.'
+      notes: 'Full clearance on A96 corridor.'
     },
     governance: {
       assessorName: 'D. Fraser',
       assessorRole: 'Route Risk Lead',
-      assessorSignature: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="35" font-family="cursive" font-size="24" fill="%23002D62">D. Fraser</text></svg>',
-      assessorDate: '2026-03-20',
       managerName: 'M. MacMillan',
       managerRole: 'Operations Manager',
-      managerSignature: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="35" font-family="cursive" font-size="24" fill="%23002D62">M. MacMillan</text></svg>',
-      managerDate: '2026-03-22',
-      status: 'APPROVED',
-      reviewComments: 'Route cleared for full double-decker express fleet.'
+      status: 'APPROVED'
     },
     createdAt: '2026-03-20T08:00:00Z',
     updatedAt: '2026-03-22T11:00:00Z'
@@ -333,7 +324,8 @@ export const initialMockRoutes: RouteAssessment[] = [
     id: 'route-55',
     routeNumber: '55',
     routeTitle: 'Aviemore – Coylumbridge – Cairngorm Mountain Base',
-    depot: 'Aviemore Outstation',
+    region: 'Stagecoach Highlands',
+    depot: 'Aviemore',
     operatingCompany: 'Stagecoach Highlands',
     assessorName: 'C. Bell (Route Assessor)',
     assessmentDate: '2026-01-15',
@@ -343,10 +335,10 @@ export const initialMockRoutes: RouteAssessment[] = [
     estimatedRunningTimeMin: 35,
     averageSpeedKph: 32,
     pathCoordinates: [
-      [57.1880, -3.8290], // Aviemore Rail Station
-      [57.1750, -3.7850], // Coylumbridge Hotel
-      [57.1550, -3.7200], // Loch Morlich Beach
-      [57.1340, -3.6740]  // Cairngorm Mountain Ski Centre
+      [57.1880, -3.8290],
+      [57.1750, -3.7850],
+      [57.1550, -3.7200],
+      [57.1340, -3.6740]
     ],
     stops: [
       {
@@ -356,7 +348,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.1880,
         lng: -3.8290,
         dwellMinutes: 2,
-        notes: 'Rail interchange and ski gear passenger boarding',
         order: 1
       },
       {
@@ -366,7 +357,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.1750,
         lng: -3.7850,
         dwellMinutes: 1,
-        notes: 'Tourist hotel pick-up stop',
         order: 2
       },
       {
@@ -376,7 +366,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.1550,
         lng: -3.7200,
         dwellMinutes: 1.5,
-        notes: 'Loch visitor car park stop',
         order: 3
       },
       {
@@ -386,7 +375,6 @@ export const initialMockRoutes: RouteAssessment[] = [
         lat: 57.1340,
         lng: -3.6740,
         dwellMinutes: 3,
-        notes: 'High altitude ski center terminus layover (640m elevation)',
         order: 4
       }
     ],
@@ -404,11 +392,8 @@ export const initialMockRoutes: RouteAssessment[] = [
         residualSeverity: 3,
         residualLikelihood: 2,
         residualScore: 6,
-        controlMeasures: '1. Daily winter road inspection with Mountain Ranger station.\n2. Mandatory retarder check before mountain descent.\n3. Speed restricted to 20 mph under adverse weather.\n4. Snow chain protocol in force during Met Office amber snow warnings.',
+        controlMeasures: '1. Daily winter road inspection with Mountain Ranger station.\n2. Mandatory retarder check before descent.\n3. Speed restricted to 20 mph under adverse weather.',
         speedLimitMph: 20,
-        vehicleRestrictions: ['Double Deck Prohibited (Crosswinds & Center of Gravity)', 'Fitted Winter Tyres Mandatory'],
-        assessorNotes: 'Steep winding ascent with frequent winter black ice, drift snow, and heavy tourist traffic.',
-        photos: ['https://images.unsplash.com/photo-1517824806704-9040b037703b?w=800&auto=format&fit=crop&q=80'],
         timestamp: '2026-01-15T09:00:00Z'
       }
     ],
@@ -417,23 +402,21 @@ export const initialMockRoutes: RouteAssessment[] = [
       doubleDeckerAllowed: false,
       coachAllowed: false,
       evAllowed: false,
-      minTurningRadiusM: 10.0,
-      maxAxleWeightTonnes: 12.0,
-      notes: 'Severe mountain crosswinds and 1:6 ice gradients PROHIBIT Double Deckers. ADL Enviro200 Midi (8.9m) & Optare Solo with winter tyres cleared.'
+      notes: 'Severe mountain crosswinds and 1:6 ice gradients PROHIBIT Double Deckers.'
     },
     governance: {
       assessorName: 'C. Bell',
       assessorRole: 'Senior Route Assessor',
-      assessorSignature: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="35" font-family="cursive" font-size="24" fill="%23002D62">C. Bell</text></svg>',
-      assessorDate: '2026-01-15',
       managerName: 'M. MacMillan',
       managerRole: 'Operations Manager',
-      managerSignature: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="35" font-family="cursive" font-size="24" fill="%23002D62">M. MacMillan</text></svg>',
-      managerDate: '2026-01-16',
-      status: 'APPROVED',
-      reviewComments: 'Winter mountain protocols verified. Council gritting priority 1 active.'
+      status: 'APPROVED'
     },
     createdAt: '2026-01-15T07:30:00Z',
     updatedAt: '2026-01-16T12:00:00Z'
   }
 ];
+
+/**
+ * Clean slate default routes for live production
+ */
+export const initialMockRoutes: RouteAssessment[] = [];

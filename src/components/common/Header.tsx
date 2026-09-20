@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from 'react';
 import { useRouteContext, ActiveTab } from '@/context/RouteContext';
+import { STAGECOACH_UK_REGIONS } from '@/types/route';
 import { 
   Bus, 
   MapPin, 
@@ -13,37 +14,65 @@ import {
   RotateCcw, 
   Wifi, 
   Cloud,
-  CheckCircle2,
-  Trash2
+  Trash2,
+  Building2,
+  Warehouse,
+  FolderOpen
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
 export default function Header() {
   const { 
-    routes, 
+    routes,
+    filteredRoutes,
     currentRouteId, 
     currentRoute, 
     selectRoute, 
     activeTab, 
     setActiveTab,
+    selectedRegionFilter,
+    setSelectedRegionFilter,
+    selectedGarageFilter,
+    setSelectedGarageFilter,
+    availableGaragesForFilter,
     createNewRoute,
     showConfirmModal,
     deleteCurrentRoute,
-    resetToMockData
+    resetToCleanSlate,
+    loadSampleTemplateRoutes
   } = useRouteContext();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
-  const [newNumber, setNewNumber] = useState('');
-  const [newTitle, setNewTitle] = useState('');
-  const [newDepot, setNewDepot] = useState('');
+  const [modalRegion, setModalRegion] = useState('Stagecoach Highlands');
+  const [modalDepot, setModalDepot] = useState('Aviemore');
+  const [modalRouteNumber, setModalRouteNumber] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalAssessor, setModalAssessor] = useState('');
+
+  // When modal region changes, set default garage for that region
+  const handleModalRegionChange = (newReg: string) => {
+    setModalRegion(newReg);
+    const regObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === newReg);
+    if (regObj && regObj.garages.length > 0) {
+      setModalDepot(regObj.garages[0]);
+    } else {
+      setModalDepot('');
+    }
+  };
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNumber.trim() || !newTitle.trim()) return;
-    createNewRoute(newNumber.trim(), newTitle.trim(), newDepot.trim() || 'Stagecoach Depot');
-    setNewNumber('');
-    setNewTitle('');
-    setNewDepot('');
+    if (!modalRouteNumber.trim() || !modalTitle.trim()) return;
+    createNewRoute(
+      modalRouteNumber.trim(), 
+      modalTitle.trim(), 
+      modalRegion, 
+      modalDepot || 'Depot',
+      modalAssessor.trim() || undefined
+    );
+    setModalRouteNumber('');
+    setModalTitle('');
+    setModalAssessor('');
     setIsNewModalOpen(false);
   };
 
@@ -59,49 +88,91 @@ export default function Header() {
     <>
       <header className="bg-stagecoach-navy border-b border-slate-800 text-white shadow-lg sticky top-0 z-40">
         {/* Top Corporate Bar */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5">
           
           {/* Brand Logo & System Title */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-stagecoach-amber flex items-center justify-center font-black text-xl shadow-md tracking-tighter text-white">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-lg bg-stagecoach-amber flex items-center justify-center font-black text-lg shadow-md tracking-tighter text-white shrink-0">
               SC
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-extrabold text-base tracking-wide text-white">STAGECOACH</span>
-                <span className="text-xs bg-stagecoach-amber/20 text-stagecoach-amber border border-stagecoach-amber/30 px-2 py-0.5 rounded-full font-semibold">
-                  RRA v2.4 Enterprise
+                <span className="font-extrabold text-sm sm:text-base tracking-wide text-white">STAGECOACH</span>
+                <span className="text-[10px] bg-stagecoach-amber/20 text-stagecoach-amber border border-stagecoach-amber/30 px-1.5 py-0.2 rounded-full font-semibold">
+                  RRA v2.4 UK
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 font-medium">
-                Route Risk Assessment & GPS Survey Platform
+              <p className="text-[10px] sm:text-[11px] text-slate-300 font-medium line-clamp-1">
+                Route Risk Assessment & GPS Platform
               </p>
             </div>
           </div>
 
-          {/* Route Selector & Actions */}
-          <div className="flex items-center flex-wrap gap-2">
+          {/* 3-Tier Cascading Filter Toolbar */}
+          <div className="flex items-center flex-wrap gap-2 text-xs">
             
-            {/* Route Selector Dropdown */}
-            <div className="relative">
+            {/* TIER 1: Region Selector Dropdown */}
+            <div className="flex items-center bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 shadow-inner">
+              <Building2 className="w-3.5 h-3.5 text-stagecoach-amber mr-1.5 shrink-0" />
+              <select
+                value={selectedRegionFilter}
+                onChange={(e) => setSelectedRegionFilter(e.target.value)}
+                aria-label="Filter by UK Region"
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[160px] truncate"
+              >
+                <option value="" className="bg-slate-900 text-slate-200">All UK Regions</option>
+                {STAGECOACH_UK_REGIONS.map((reg) => (
+                  <option key={reg.regionName} value={reg.regionName} className="bg-slate-900 text-slate-200">
+                    {reg.regionName.replace('Stagecoach ', '')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* TIER 2: Garage / Depot Dropdown */}
+            <div className="flex items-center bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 shadow-inner">
+              <Warehouse className="w-3.5 h-3.5 text-blue-400 mr-1.5 shrink-0" />
+              <select
+                value={selectedGarageFilter}
+                onChange={(e) => setSelectedGarageFilter(e.target.value)}
+                aria-label="Filter by Garage / Depot"
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[140px] truncate"
+              >
+                <option value="" className="bg-slate-900 text-slate-200">All Garages</option>
+                {availableGaragesForFilter.map((garage) => (
+                  <option key={garage} value={garage} className="bg-slate-900 text-slate-200">
+                    {garage}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* TIER 3: Route Selector Dropdown */}
+            <div className="flex items-center bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 shadow-inner">
+              <Bus className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
               <select
                 value={currentRouteId}
                 onChange={(e) => selectRoute(e.target.value)}
                 aria-label="Select active route assessment"
-                className="bg-slate-800/90 text-white text-xs sm:text-sm font-semibold rounded-lg border border-slate-700 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-stagecoach-amber pr-8 cursor-pointer"
+                disabled={filteredRoutes.length === 0}
+                className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[190px] truncate disabled:opacity-50"
               >
-                {routes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    Route {r.routeNumber} - {r.routeTitle.length > 28 ? r.routeTitle.substring(0, 28) + '...' : r.routeTitle}
-                  </option>
-                ))}
+                {filteredRoutes.length === 0 ? (
+                  <option value="" className="bg-slate-900 text-slate-400">No matching routes</option>
+                ) : (
+                  filteredRoutes.map((r) => (
+                    <option key={r.id} value={r.id} className="bg-slate-900 text-slate-200">
+                      Rte {r.routeNumber} - {r.routeTitle.length > 22 ? r.routeTitle.substring(0, 22) + '...' : r.routeTitle}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
             {/* New Route Button */}
             <button
               onClick={() => setIsNewModalOpen(true)}
-              className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow transition-colors border border-blue-600"
+              className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors border border-blue-600"
               title="Create New Route Assessment"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
@@ -109,16 +180,16 @@ export default function Header() {
             </button>
 
             {/* Sync Status Badge */}
-            <div className="hidden sm:flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">
+            <div className="hidden lg:flex items-center space-x-1 px-2 py-1 rounded-md bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               {isFirebaseConfigured ? (
                 <>
-                  <Cloud className="w-3 h-3 text-emerald-400 ml-1" />
+                  <Cloud className="w-3 h-3 text-emerald-400 ml-0.5" />
                   <span>Cloud Active</span>
                 </>
               ) : (
                 <>
-                  <Wifi className="w-3 h-3 text-emerald-400 ml-1" />
+                  <Wifi className="w-3 h-3 text-emerald-400 ml-0.5" />
                   <span>Offline Ready</span>
                 </>
               )}
@@ -127,37 +198,55 @@ export default function Header() {
             {/* Print / Export A4 PDF */}
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 transition-colors"
+              disabled={!currentRoute}
+              className="inline-flex items-center px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold border border-slate-700 transition-colors disabled:opacity-40"
               title="Print / Save A4 Route Safety Dossier"
             >
               <Printer className="w-3.5 h-3.5 mr-1 text-slate-300" />
-              <span className="hidden md:inline">Print / PDF</span>
+              <span className="hidden xl:inline">PDF</span>
             </button>
 
-            {/* Reset Mock Data */}
+            {/* Load Samples / Template Button */}
             <button
               onClick={() => {
                 showConfirmModal({
-                  title: 'Reset Corporate Mock Data?',
-                  message: 'This will reset your route assessments back to official Stagecoach baseline templates.',
-                  confirmText: 'Reset Mock Data',
+                  title: 'Load Scottish Highlands Templates?',
+                  message: 'This will import the 3 reference Highland routes (Route 37 Aviemore, Route 11 Inverness, Route N44 Fort William) for testing.',
+                  confirmText: 'Load Templates',
                   isDestructive: false,
-                  onConfirm: () => resetToMockData(),
+                  onConfirm: () => loadSampleTemplateRoutes(),
+                });
+              }}
+              className="p-1.5 text-slate-400 hover:text-stagecoach-amber rounded-lg hover:bg-slate-800 transition-colors"
+              title="Load Scottish Highlands Sample Templates"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Clear All / Clean Slate */}
+            <button
+              onClick={() => {
+                showConfirmModal({
+                  title: 'Clear All Routes (Clean Slate)?',
+                  message: 'This will clear all route assessments from local memory so you can test creating your own from scratch.',
+                  confirmText: 'Clear All Routes',
+                  isDestructive: true,
+                  onConfirm: () => resetToCleanSlate(),
                 });
               }}
               className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-              title="Reset Mock Data"
+              title="Clear all routes (Clean Slate)"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
-            {/* Delete Route */}
-            {routes.length > 1 && (
+            {/* Delete Single Active Route */}
+            {currentRoute && (
               <button
                 onClick={() => {
                   showConfirmModal({
-                    title: `Delete Route ${currentRoute?.routeNumber}?`,
-                    message: `Are you sure you want to delete ${currentRoute?.routeTitle}? All hazards and GIS coordinates for this route will be permanently removed.`,
+                    title: 'Delete Route ' + (currentRoute?.routeNumber || '') + '?',
+                    message: 'Are you sure you want to delete ' + (currentRoute?.routeTitle || '') + '? All hazards and GIS coordinates for this route will be permanently removed.',
                     confirmText: 'Delete Route',
                     isDestructive: true,
                     onConfirm: () => deleteCurrentRoute(),
@@ -182,18 +271,19 @@ export default function Header() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center space-x-2 py-2.5 px-4 font-semibold text-xs lg:text-sm border-b-2 transition-all ${
+                  disabled={!currentRoute}
+                  className={'flex items-center space-x-2 py-2 px-3.5 font-semibold text-xs lg:text-sm border-b-2 transition-all disabled:opacity-40 ' + (
                     isActive
                       ? 'border-stagecoach-amber text-stagecoach-amber bg-slate-800/50'
                       : 'border-transparent text-slate-300 hover:text-white hover:bg-slate-800/30'
-                  }`}
+                  )}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-stagecoach-amber' : 'text-slate-400'}`} />
+                  <Icon className={'w-4 h-4 ' + (isActive ? 'text-stagecoach-amber' : 'text-slate-400')} />
                   <span>{item.label}</span>
                   {item.count !== undefined && item.count > 0 && (
-                    <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    <span className={'ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ' + (
                       isActive ? 'bg-stagecoach-amber text-slate-900' : 'bg-slate-700 text-slate-200'
-                    }`}>
+                    )}>
                       {item.count}
                     </span>
                   )}
@@ -204,52 +294,88 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Modal: New Route Assessment */}
+      {/* Modal: New Route Assessment with Region and Garage Selection */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-stagecoach-blue">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-stagecoach-blue shrink-0">
                 <Bus className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">New Route Assessment</h3>
-                <p className="text-xs text-slate-500">Initiate a field survey dossier for Stagecoach bus network</p>
+                <p className="text-xs text-slate-500">Create a UK-wide route survey dossier with Region & Garage attribution</p>
               </div>
             </div>
 
-            <form onSubmit={handleCreateRoute} className="space-y-4">
+            <form onSubmit={handleCreateRoute} className="space-y-3.5">
+              
+              {/* Region Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Route / Line Number *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 192, X50, 43A"
-                  value={newNumber}
-                  onChange={(e) => setNewNumber(e.target.value)}
-                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                />
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Region *</label>
+                <select
+                  value={modalRegion}
+                  onChange={(e) => handleModalRegionChange(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
+                >
+                  {STAGECOACH_UK_REGIONS.map((reg) => (
+                    <option key={reg.regionName} value={reg.regionName}>
+                      {reg.regionName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
+              {/* Garage / Depot Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Route Corridor / Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Manchester Airport - Piccadilly Express"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                />
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Garage / Depot *</label>
+                <select
+                  value={modalDepot}
+                  onChange={(e) => setModalDepot(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
+                >
+                  {STAGECOACH_UK_REGIONS.find(r => r.regionName === modalRegion)?.garages.map((garage) => (
+                    <option key={garage} value={garage}>
+                      {garage}
+                    </option>
+                  ))}
+                </select>
               </div>
 
+              {/* Route Number & Title */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Route / Line # *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 37, 192, X5"
+                    value={modalRouteNumber}
+                    onChange={(e) => setModalRouteNumber(e.target.value)}
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Route Title / Corridor *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Aviemore - Cairngorm Mountain"
+                    value={modalTitle}
+                    onChange={(e) => setModalTitle(e.target.value)}
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                  />
+                </div>
+              </div>
+
+              {/* Assessor Name */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Home Depot</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Assessor Name / Title</label>
                 <input
                   type="text"
-                  placeholder="e.g. Sharston Depot, Hyde Road"
-                  value={newDepot}
-                  onChange={(e) => setNewDepot(e.target.value)}
+                  placeholder="e.g. Allan Johnson (Lead Risk Assessor)"
+                  value={modalAssessor}
+                  onChange={(e) => setModalAssessor(e.target.value)}
                   className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                 />
               </div>
@@ -264,9 +390,10 @@ export default function Header() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-stagecoach-blue hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow"
+                  className="px-4 py-2 bg-stagecoach-blue hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow flex items-center space-x-1"
                 >
-                  Create & Launch GIS
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  <span>Create Assessment & Open GIS</span>
                 </button>
               </div>
             </form>
