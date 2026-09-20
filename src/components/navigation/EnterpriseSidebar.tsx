@@ -15,18 +15,21 @@ import {
   FileText, 
   LogOut, 
   Menu, 
-  X,
-  ChevronDown,
-  ClipboardList,
-  Navigation,
-  AlertTriangle,
-  Radio,
-  Eye,
-  CheckCircle2,
-  PhoneCall,
-  Crown
+  X, 
+  ChevronDown, 
+  ClipboardList, 
+  Navigation, 
+  AlertTriangle, 
+  Radio, 
+  Eye, 
+  CheckCircle2, 
+  PhoneCall, 
+  Crown,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
+import { usePwa } from '@/context/PwaContext';
 
 interface NavItem {
   label: string;
@@ -53,6 +56,7 @@ export default function EnterpriseSidebar() {
     switchPerspective, 
     resetPerspective 
   } = useAuthContext();
+  const { isInstalled, promptInstall } = usePwa();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -323,6 +327,35 @@ export default function EnterpriseSidebar() {
 
         {/* Bottom System & Logout Strip */}
         <div className="p-3 border-t border-slate-800 bg-[#00132b] space-y-2">
+          {/* PWA Install Button or Standalone Badge */}
+          {!isInstalled ? (
+            <button
+              onClick={() => {
+                setIsMobileOpen(false);
+                promptInstall();
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500/20 to-amber-600/10 hover:from-amber-500/30 hover:to-amber-600/20 text-amber-300 border border-amber-500/30 shadow-sm transition group cursor-pointer"
+            >
+              <div className="flex items-center space-x-2">
+                <Download className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Install App on Device</span>
+              </div>
+              <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase">
+                PWA
+              </span>
+            </button>
+          ) : (
+            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-300">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-semibold text-emerald-200">Installed PWA Ready</span>
+              </div>
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">
+                Offline
+              </span>
+            </div>
+          )}
+
           {/* Cloud Status */}
           <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px] text-slate-400">
             <div className="flex items-center space-x-2">

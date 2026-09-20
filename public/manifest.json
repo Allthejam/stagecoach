@@ -1,24 +1,75 @@
 {
-  "name": "Stagecoach Route Risk Assessment & Mapping",
+  "name": "Stagecoach Route Risk Assessment & Operations",
   "short_name": "Stagecoach RRA",
-  "description": "Transit Route Risk Assessment, GPS Tracking, Dwell Timing & Vehicle Compatibility Platform",
+  "description": "Enterprise bus route safety auditing, GPS corridor tracing, 5x5 HSE risk assessment, and depot fleet management.",
   "start_url": "/",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
-  "background_color": "#002855",
-  "theme_color": "#002855",
   "orientation": "any",
+  "background_color": "#001733",
+  "theme_color": "#001733",
+  "categories": ["business", "productivity", "utilities", "navigation"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Route Assessments",
+      "short_name": "Routes",
+      "description": "View and perform Route Risk Assessments",
+      "url": "/routes",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Executive Dashboard",
+      "short_name": "Dashboard",
+      "description": "National safety KPIs and fleet overview",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Depot Fleet",
+      "short_name": "Fleet",
+      "description": "Depot bus fleet & vehicle profiles",
+      "url": "/fleet",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "HSE Governance",
+      "short_name": "Governance",
+      "description": "5x5 HSE Hazard Matrix & Sign-Off",
+      "url": "/governance",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
