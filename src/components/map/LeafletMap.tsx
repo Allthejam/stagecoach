@@ -9,6 +9,9 @@ import MobileGisSheet from './MobileGisSheet';
 import HazardDetailModal from './HazardDetailModal';
 import AddStopModal from './AddStopModal';
 import AddHazardModal from './AddHazardModal';
+import LiveSurveyControlBar from './LiveSurveyControlBar';
+import SurveyPauseModal from './SurveyPauseModal';
+import SurveySummaryModal from './SurveySummaryModal';
 import { 
   Maximize2, 
   Minimize2, 
@@ -55,6 +58,8 @@ export default function LeafletMap() {
     userGpsPosition,
     setUserGpsPosition,
     showToast,
+    surveyStatus,
+    recordGpsBreadcrumb,
   } = useRouteContext();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -367,9 +372,9 @@ export default function LeafletMap() {
 
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude } = pos.coords;
+          const { latitude, longitude, speed, accuracy } = pos.coords;
           const posCoord: [number, number] = [latitude, longitude];
-          setUserGpsPosition(posCoord);
+          recordGpsBreadcrumb(latitude, longitude, speed, accuracy);
 
           if (mapInstanceRef.current && L) {
             if (!gpsMarkerRef.current) {
@@ -377,11 +382,14 @@ export default function LeafletMap() {
                 radius: 8,
                 color: '#ffffff',
                 weight: 3,
-                fillColor: '#0284c7',
+                fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
                 fillOpacity: 0.9,
               }).addTo(mapInstanceRef.current);
             } else {
               gpsMarkerRef.current.setLatLng(posCoord);
+              gpsMarkerRef.current.setStyle({
+                fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
+              });
             }
           }
         },
@@ -474,6 +482,9 @@ export default function LeafletMap() {
             </div>
           </div>
         </div>
+
+        {/* Live Survey Control HUD (Start / Pause / Resume / Stop) */}
+        <LiveSurveyControlBar />
 
         {/* Main 2-Column GIS Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -813,6 +824,8 @@ export default function LeafletMap() {
       <HazardDetailModal />
       <AddStopModal />
       <AddHazardModal />
+      <SurveyPauseModal />
+      <SurveySummaryModal />
     </>
   );
 }

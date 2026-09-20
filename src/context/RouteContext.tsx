@@ -1,7 +1,17 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { RouteAssessment, GisToolMode, HazardObservation, RouteStop, StopType } from '@/types/route';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef } from 'react';
+import { 
+  RouteAssessment, 
+  GisToolMode, 
+  HazardObservation, 
+  RouteStop, 
+  StopType,
+  SurveyStatus,
+  SurveyPauseReason,
+  SurveyPauseLog,
+  LiveSurveyTelemetry
+} from '@/types/route';
 import { initialMockRoutes } from '@/lib/mockData';
 import { 
   getAllRoutes, 
@@ -9,7 +19,14 @@ import {
   deleteRoute as deleteRouteApi, 
   resetMockData as resetMockDataApi
 } from '@/lib/firestore';
-import { calculateTotalRouteDistanceKm, calculateEstimatedRunningTime } from '@/lib/calculations';
+import { 
+  calculateTotalRouteDistanceKm, 
+  calculateEstimatedRunningTime,
+  calculateHaversineDistanceKm,
+  kmToMiles,
+  mpsToMph,
+  calculateTrueAverageSpeed
+} from '@/lib/calculations';
 
 export type ActiveTab = 'map' | 'hazards' | 'fleet' | 'driver' | 'governance' | 'assignments';
 
@@ -32,6 +49,29 @@ interface RouteContextType {
   gisToolMode: GisToolMode;
   setGisToolMode: (mode: GisToolMode) => void;
   selectRoute: (id: string) => void;
+  
+  // Live Survey Engine (Start, Pause, Resume, Stop)
+  surveyStatus: SurveyStatus;
+  surveyElapsedSeconds: number;
+  surveyActiveSeconds: number;
+  surveyPausedSeconds: number;
+  surveyCurrentSpeedMph: number;
+  surveyAverageSpeedMph: number;
+  surveyAverageSpeedKph: number;
+  surveyDistanceMiles: number;
+  surveyDistanceKm: number;
+  surveyPauseLogs: SurveyPauseLog[];
+  activePauseReason: SurveyPauseReason | string;
+  isPauseModalOpen: boolean;
+  setIsPauseModalOpen: (open: boolean) => void;
+  isSurveySummaryModalOpen: boolean;
+  setIsSurveySummaryModalOpen: (open: boolean) => void;
+  startLiveSurvey: () => void;
+  pauseLiveSurvey: (reason?: SurveyPauseReason | string) => void;
+  resumeLiveSurvey: () => void;
+  stopLiveSurvey: () => void;
+  resetLiveSurvey: () => void;
+  recordGpsBreadcrumb: (lat: number, lng: number, speedMps?: number | null, accuracyMeters?: number | null) => void;
   
   // Dynamic Cascading Filters built strictly from database routes
   selectedRegionFilter: string;
@@ -112,6 +152,51 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   const [userGpsPosition, setUserGpsPosition] = useState<[number, number] | null>(null);
   const [gpsAccuracyMeters, setUserGpsAccuracy] = useState<number | null>(null);
   
+  // Live Survey Telemetry States
+  const [surveyStatus, setSurveyStatus] = useState<SurveyStatus>('idle');
+  const [surveyElapsedSeconds, setSurveyElapsedSeconds] = useState<number>(0);
+  const [surveyActiveSeconds, setSurveyActiveSeconds] = useState<number>(0);
+  const [surveyPausedSeconds, setSurveyPausedSeconds] = useState<number>(0);
+  const [surveyCurrentSpeedMph, setSurveyCurrentSpeedMph] = useState<number>(0);
+  const [surveyAverageSpeedMph, setSurveyAverageSpeedMph] = useState<number>(0);
+  const [surveyAverageSpeedKph, setSurveyAverageSpeedKph] = useState<number>(0);
+  const [surveyDistanceMiles, setSurveyDistanceMiles] = useState<number>(0);
+  const [surveyDistanceKm, setSurveyDistanceKm] = useState<number>(0);
+  const [surveyPauseLogs, setSurveyPauseLogs] = useState<SurveyPauseLog[]>([]);
+  const [activePauseReason, setActivePauseReason] = useState<SurveyPauseReason | string>('Hazard Site Inspection');
+  const [isPauseModalOpen, setIsPauseModalOpen] = useState(false);
+  const [isSurveySummaryModalOpen, setIsSurveySummaryModalOpen] = useState(false);
+
+  const currentPauseLogRef = useRef<SurveyPauseLog | null>(null);
+  const lastRecordedCoordRef = useRef<[number, number] | null>(null);
+
+  // Live Survey Timer Interval
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (surveyStatus === 'recording') {
+      interval = setInterval(() => {
+        setSurveyElapsedSeconds((prev) => prev + 1);
+        setSurveyActiveSeconds((prev) => {
+          const nextActive = prev + 1;
+          if (nextActive > 3 && surveyDistanceKm > 0) {
+            const { speedKph, speedMph } = calculateTrueAverageSpeed(surveyDistanceKm, nextActive);
+            setSurveyAverageSpeedKph(speedKph);
+            setSurveyAverageSpeedMph(speedMph);
+          }
+          return nextActive;
+        });
+      }, 1000);
+    } else if (surveyStatus === 'paused') {
+      interval = setInterval(() => {
+        setSurveyElapsedSeconds((prev) => prev + 1);
+        setSurveyPausedSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [surveyStatus, surveyDistanceKm]);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
@@ -410,6 +495,160 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const startLiveSurvey = () => {
+    setSurveyStatus('recording');
+    setIsGpsTracking(true);
+    setGisToolMode('browse');
+    showToast('Live RRA Survey Started — Active Moving Speed Recording');
+  };
+
+  const pauseLiveSurvey = (reason?: SurveyPauseReason | string) => {
+    const pauseReason = reason || activePauseReason || 'Hazard Site Inspection';
+    setActivePauseReason(pauseReason);
+    const newPauseLog: SurveyPauseLog = {
+      id: 'pause_' + Date.now(),
+      pausedAt: new Date().toISOString(),
+      durationSeconds: 0,
+      reason: pauseReason,
+      coordinates: userGpsPosition || undefined
+    };
+    currentPauseLogRef.current = newPauseLog;
+    setSurveyStatus('paused');
+    setIsPauseModalOpen(false);
+    showToast(`Survey Paused (${pauseReason}) — Average Speed Protected`);
+  };
+
+  const resumeLiveSurvey = () => {
+    if (currentPauseLogRef.current) {
+      const now = new Date();
+      const pausedAt = new Date(currentPauseLogRef.current.pausedAt);
+      const durationSec = Math.max(1, Math.round((now.getTime() - pausedAt.getTime()) / 1000));
+      const finalizedLog: SurveyPauseLog = {
+        ...currentPauseLogRef.current,
+        resumedAt: now.toISOString(),
+        durationSeconds: durationSec
+      };
+      setSurveyPauseLogs((prev) => [...prev, finalizedLog]);
+      currentPauseLogRef.current = null;
+    }
+    setSurveyStatus('recording');
+    setIsGpsTracking(true);
+    showToast('Survey Resumed — Corridor Tracing Active');
+  };
+
+  const stopLiveSurvey = () => {
+    let finalPauseLogs = [...surveyPauseLogs];
+    if (currentPauseLogRef.current) {
+      const now = new Date();
+      const pausedAt = new Date(currentPauseLogRef.current.pausedAt);
+      const durationSec = Math.max(1, Math.round((now.getTime() - pausedAt.getTime()) / 1000));
+      const finalizedLog: SurveyPauseLog = {
+        ...currentPauseLogRef.current,
+        resumedAt: now.toISOString(),
+        durationSeconds: durationSec
+      };
+      finalPauseLogs.push(finalizedLog);
+      setSurveyPauseLogs(finalPauseLogs);
+      currentPauseLogRef.current = null;
+    }
+
+    setSurveyStatus('completed');
+    
+    // Save telemetry to current route
+    if (currentRoute) {
+      const finalTelemetry: LiveSurveyTelemetry = {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        elapsedSeconds: surveyElapsedSeconds,
+        activeMovingSeconds: surveyActiveSeconds,
+        pausedSeconds: surveyPausedSeconds,
+        currentSpeedMph: 0,
+        averageMovingSpeedMph: surveyAverageSpeedMph,
+        averageMovingSpeedKph: surveyAverageSpeedKph,
+        recordedDistanceMiles: surveyDistanceMiles,
+        recordedDistanceKm: surveyDistanceKm,
+        pauseLogs: finalPauseLogs
+      };
+
+      updateCurrentRoute((prev) => ({
+        ...prev,
+        surveyTelemetry: finalTelemetry,
+        totalDistanceKm: surveyDistanceKm > 0 ? surveyDistanceKm : prev.totalDistanceKm,
+        averageSpeedKph: surveyAverageSpeedKph > 0 ? surveyAverageSpeedKph : prev.averageSpeedKph,
+        updatedAt: new Date().toISOString()
+      }));
+    }
+
+    setIsSurveySummaryModalOpen(true);
+    showToast('Live Survey Finished — Telemetry Summary Ready');
+  };
+
+  const resetLiveSurvey = () => {
+    setSurveyStatus('idle');
+    setSurveyElapsedSeconds(0);
+    setSurveyActiveSeconds(0);
+    setSurveyPausedSeconds(0);
+    setSurveyCurrentSpeedMph(0);
+    setSurveyAverageSpeedMph(0);
+    setSurveyAverageSpeedKph(0);
+    setSurveyDistanceMiles(0);
+    setSurveyDistanceKm(0);
+    setSurveyPauseLogs([]);
+    currentPauseLogRef.current = null;
+    lastRecordedCoordRef.current = null;
+    setIsSurveySummaryModalOpen(false);
+    setIsPauseModalOpen(false);
+    showToast('Survey Telemetry Reset');
+  };
+
+  const recordGpsBreadcrumb = (lat: number, lng: number, speedMps?: number | null, accuracyMeters?: number | null) => {
+    setUserGpsPosition([lat, lng]);
+    if (accuracyMeters !== undefined && accuracyMeters !== null) setUserGpsAccuracy(accuracyMeters);
+
+    if (speedMps !== null && speedMps !== undefined && speedMps >= 0) {
+      setSurveyCurrentSpeedMph(mpsToMph(speedMps));
+    }
+
+    // Only record breadcrumbs into the route corridor if survey is active/recording
+    if (surveyStatus === 'recording') {
+      const lastCoord = lastRecordedCoordRef.current;
+      let shouldAppend = false;
+      let stepDistanceKm = 0;
+
+      if (!lastCoord) {
+        shouldAppend = true;
+      } else {
+        stepDistanceKm = calculateHaversineDistanceKm(lastCoord[0], lastCoord[1], lat, lng);
+        // Minimum 5m movement to avoid GPS jitter, max 1km to avoid teleports
+        if (stepDistanceKm >= 0.005 && stepDistanceKm < 1.0) {
+          shouldAppend = true;
+        }
+      }
+
+      if (shouldAppend) {
+        lastRecordedCoordRef.current = [lat, lng];
+        setSurveyDistanceKm((prevKm) => {
+          const nextKm = parseFloat((prevKm + stepDistanceKm).toFixed(3));
+          setSurveyDistanceMiles(kmToMiles(nextKm));
+          return nextKm;
+        });
+
+        updateCurrentRoute((prev) => {
+          const nextCoords: [number, number][] = [...prev.pathCoordinates, [lat, lng]];
+          const nextDistance = calculateTotalRouteDistanceKm(nextCoords);
+          const nextRunningTime = calculateEstimatedRunningTime(nextDistance, prev.stops, surveyAverageSpeedKph || 22);
+          return {
+            ...prev,
+            pathCoordinates: nextCoords,
+            totalDistanceKm: nextDistance,
+            estimatedRunningTimeMin: nextRunningTime,
+            updatedAt: new Date().toISOString()
+          };
+        });
+      }
+    }
+  };
+
   const assignRouteToAssessor = async (
     routeId: string, 
     assessorId: string, 
@@ -458,6 +697,27 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         setSelectedGarageFilter,
         availableRegionsForFilter,
         availableGaragesForFilter,
+        surveyStatus,
+        surveyElapsedSeconds,
+        surveyActiveSeconds,
+        surveyPausedSeconds,
+        surveyCurrentSpeedMph,
+        surveyAverageSpeedMph,
+        surveyAverageSpeedKph,
+        surveyDistanceMiles,
+        surveyDistanceKm,
+        surveyPauseLogs,
+        activePauseReason,
+        isPauseModalOpen,
+        setIsPauseModalOpen,
+        isSurveySummaryModalOpen,
+        setIsSurveySummaryModalOpen,
+        startLiveSurvey,
+        pauseLiveSurvey,
+        resumeLiveSurvey,
+        stopLiveSurvey,
+        resetLiveSurvey,
+        recordGpsBreadcrumb,
         updateCurrentRoute,
         saveCurrentRoute,
         createNewRoute,

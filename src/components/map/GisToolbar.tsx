@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from 'react';
 import { useRouteContext } from '@/context/RouteContext';
@@ -34,6 +34,11 @@ export default function GisToolbar({ onCenterMap, onToggleGps }: GisToolbarProps
     tileLayer,
     setTileLayer,
     isGpsTracking,
+    surveyStatus,
+    startLiveSurvey,
+    pauseLiveSurvey,
+    resumeLiveSurvey,
+    setIsPauseModalOpen
   } = useRouteContext();
 
   const toolButtons: { mode: GisToolMode; label: string; icon: React.ReactNode; color: string; desc: string }[] = [
@@ -164,19 +169,39 @@ export default function GisToolbar({ onCenterMap, onToggleGps }: GisToolbarProps
           </button>
 
           <button
-            onClick={onToggleGps}
+            onClick={() => {
+              if (surveyStatus === 'idle') {
+                startLiveSurvey();
+              } else if (surveyStatus === 'recording') {
+                setIsPauseModalOpen(true);
+              } else if (surveyStatus === 'paused') {
+                resumeLiveSurvey();
+              } else {
+                onToggleGps();
+              }
+            }}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-              isGpsTracking
+              surveyStatus === 'recording'
+                ? 'bg-emerald-600 text-white shadow-emerald-600/30 shadow animate-pulse'
+                : surveyStatus === 'paused'
+                ? 'bg-amber-500 text-slate-950 shadow-amber-500/30 shadow'
+                : isGpsTracking
                 ? 'bg-emerald-600 text-white shadow-emerald-600/30 shadow'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Navigation className={`w-4 h-4 ${isGpsTracking ? 'animate-spin' : ''}`} />
-              <span>{isGpsTracking ? 'GPS Survey Tracking ON' : 'Start Live GPS Survey'}</span>
+              <Navigation className={`w-4 h-4 ${surveyStatus === 'recording' || isGpsTracking ? 'animate-spin' : ''}`} />
+              <span>
+                {surveyStatus === 'recording'
+                  ? 'GPS Survey: LIVE'
+                  : surveyStatus === 'paused'
+                  ? 'GPS Survey: PAUSED'
+                  : 'Start Live GPS Survey'}
+              </span>
             </div>
             <span className="text-[10px] font-bold">
-              {isGpsTracking ? 'Active' : 'Off'}
+              {surveyStatus === 'recording' ? 'Rec' : surveyStatus === 'paused' ? 'Hold' : 'Off'}
             </span>
           </button>
         </div>

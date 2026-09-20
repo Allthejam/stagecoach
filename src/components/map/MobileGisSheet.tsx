@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from 'react';
 import { useRouteContext } from '@/context/RouteContext';
@@ -28,6 +28,10 @@ export default function MobileGisSheet({ onCenterMap, onToggleGps }: MobileGisSh
     tileLayer,
     setTileLayer,
     isGpsTracking,
+    surveyStatus,
+    startLiveSurvey,
+    resumeLiveSurvey,
+    setIsPauseModalOpen
   } = useRouteContext();
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -116,15 +120,35 @@ export default function MobileGisSheet({ onCenterMap, onToggleGps }: MobileGisSh
 
           <button
             onClick={() => {
-              onToggleGps();
+              if (surveyStatus === 'idle') {
+                startLiveSurvey();
+              } else if (surveyStatus === 'recording') {
+                setIsPauseModalOpen(true);
+              } else if (surveyStatus === 'paused') {
+                resumeLiveSurvey();
+              } else {
+                onToggleGps();
+              }
               setIsExpanded(false);
             }}
             className={`flex items-center justify-center space-x-1.5 p-2 rounded-xl text-xs font-bold ${
-              isGpsTracking ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'
+              surveyStatus === 'recording'
+                ? 'bg-emerald-600 text-white animate-pulse'
+                : surveyStatus === 'paused'
+                ? 'bg-amber-500 text-slate-950 font-black'
+                : isGpsTracking 
+                ? 'bg-emerald-600 text-white' 
+                : 'bg-slate-800 text-slate-300'
             }`}
           >
             <Navigation className="w-3.5 h-3.5" />
-            <span>{isGpsTracking ? 'GPS: ON' : 'GPS: OFF'}</span>
+            <span>
+              {surveyStatus === 'recording'
+                ? 'Survey: REC'
+                : surveyStatus === 'paused'
+                ? 'Survey: PAUSED'
+                : 'Live GPS'}
+            </span>
           </button>
         </div>
       )}

@@ -1,4 +1,4 @@
-﻿import { RouteStop, HazardObservation, VehicleRestrictions } from '@/types/route';
+import { RouteStop, HazardObservation, VehicleRestrictions } from '@/types/route';
 
 /**
  * Calculates Great-Circle distance between two coordinates in Kilometres (Haversine formula)
@@ -136,3 +136,56 @@ export function evaluateFleetCompatibility(
     warnings,
   };
 }
+
+/**
+ * Converts Kilometres to Statute Miles
+ */
+export function kmToMiles(km: number): number {
+  return parseFloat((km * 0.621371).toFixed(2));
+}
+
+/**
+ * Converts Statute Miles to Kilometres
+ */
+export function milesToKm(miles: number): number {
+  return parseFloat((miles / 0.621371).toFixed(2));
+}
+
+/**
+ * Converts GPS speed in Metres/Second to Miles Per Hour (mph)
+ */
+export function mpsToMph(mps: number): number {
+  if (!mps || mps <= 0) return 0;
+  return parseFloat((mps * 2.23694).toFixed(1));
+}
+
+/**
+ * Formats total seconds into HH:MM:SS or MM:SS format
+ */
+export function formatDurationHMS(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return '00:00';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  if (hrs > 0) {
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Computes True Average Moving Speed (excluding paused / hold times)
+ */
+export function calculateTrueAverageSpeed(
+  distanceKm: number,
+  activeMovingSeconds: number
+): { speedKph: number; speedMph: number } {
+  if (distanceKm <= 0 || activeMovingSeconds <= 5) {
+    return { speedKph: 0, speedMph: 0 };
+  }
+  const hours = activeMovingSeconds / 3600;
+  const speedKph = parseFloat((distanceKm / hours).toFixed(1));
+  const speedMph = parseFloat((speedKph * 0.621371).toFixed(1));
+  return { speedKph, speedMph };
+}
+

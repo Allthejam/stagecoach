@@ -71,6 +71,41 @@ export interface GovernanceSignOff {
   reviewComments?: string;
 }
 
+export type SurveyStatus = 'idle' | 'recording' | 'paused' | 'completed';
+
+export type SurveyPauseReason = 
+  | 'Hazard Site Inspection'
+  | 'Railway Level Crossing'
+  | 'Roadworks / Temporary Diversion'
+  | 'Traffic Congestion / Bottleneck'
+  | 'Driver Rest / Dwell Hold'
+  | 'Depot Operations Consult'
+  | 'Other Operational Pause';
+
+export interface SurveyPauseLog {
+  id: string;
+  pausedAt: string;
+  resumedAt?: string;
+  durationSeconds: number;
+  reason: SurveyPauseReason | string;
+  coordinates?: [number, number];
+}
+
+export interface LiveSurveyTelemetry {
+  status: SurveyStatus;
+  startedAt?: string;
+  completedAt?: string;
+  elapsedSeconds: number;
+  activeMovingSeconds: number;
+  pausedSeconds: number;
+  currentSpeedMph: number;
+  averageMovingSpeedMph: number;
+  averageMovingSpeedKph: number;
+  recordedDistanceMiles: number;
+  recordedDistanceKm: number;
+  pauseLogs: SurveyPauseLog[];
+}
+
 export interface RouteAssessment {
   id: string;
   routeNumber: string;
@@ -92,6 +127,9 @@ export interface RouteAssessment {
   // Stops & Hazards
   stops: RouteStop[];
   hazards: HazardObservation[];
+  
+  // Live Survey Telemetry (Start / Pause / Resume / Stop)
+  surveyTelemetry?: LiveSurveyTelemetry;
   
   // Assignment & Chain of Command Delegation
   assignedToAssessorId?: string;
