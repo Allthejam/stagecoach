@@ -3,16 +3,14 @@ import './globals.css';
 import { RouteProvider } from '@/context/RouteContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { FleetProvider } from '@/context/FleetContext';
-import Header from '@/components/common/Header';
-import MobileBottomNav from '@/components/common/MobileBottomNav';
+import EnterpriseNavbar from '@/components/navigation/EnterpriseNavbar';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import Toast from '@/components/common/Toast';
-import SideDrawer from '@/components/common/SideDrawer';
 import LoginModal from '@/components/auth/LoginModal';
 
 export const metadata: Metadata = {
-  title: 'Stagecoach Route Risk Assessment & GPS Survey Platform',
-  description: 'Enterprise bus route safety auditing, GPS corridor tracing, 5x5 HSE risk assessment, and driver flashcards.',
+  title: 'Stagecoach Route Risk Assessment & National Operations Platform',
+  description: 'Enterprise bus route safety auditing, GPS corridor tracing, 5x5 HSE risk assessment, and depot fleet management.',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
@@ -45,12 +43,10 @@ export default function RootLayout({
         <AuthProvider>
           <FleetProvider>
             <RouteProvider>
-              <Header />
+              <EnterpriseNavbar />
               <main className="flex-1 w-full relative">
                 {children}
               </main>
-              <MobileBottomNav />
-              <SideDrawer />
               <LoginModal />
               <ConfirmModal />
               <Toast />
@@ -61,5 +57,6 @@ export default function RootLayout({
     </html>
   );
 }
+
 
 
