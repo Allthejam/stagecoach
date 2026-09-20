@@ -227,12 +227,16 @@ export default function UserManagementView() {
               const res = await syncAllUsersToFirestore();
               await refreshUsersList();
               setIsSyncingCloud(false);
-              setSyncStatusMsg(`Saved ${res.count} users to Firestore 'users' collection.`);
-              setTimeout(() => setSyncStatusMsg(null), 4000);
+              setSyncStatusMsg(
+                res.authCreatedCount > 0
+                  ? `Synced ${res.count} users to Firestore (${res.authCreatedCount} newly provisioned in Firebase Auth).`
+                  : `All ${res.count} users synced to Firestore & Firebase Auth.`
+              );
+              setTimeout(() => setSyncStatusMsg(null), 5000);
             }}
             disabled={isSyncingCloud}
             className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 shadow transition cursor-pointer disabled:opacity-50"
-            title="Force save all users to Firestore cloud database"
+            title="Force save all users to Firestore cloud database and provision Firebase Auth accounts"
           >
             <CloudUpload className={`w-3.5 h-3.5 text-stagecoach-amber ${isSyncingCloud ? 'animate-bounce' : ''}`} />
             <span>{isSyncingCloud ? 'Syncing...' : 'Sync Cloud DB'}</span>
@@ -401,6 +405,45 @@ export default function UserManagementView() {
                       <span className={'text-[10px] font-bold px-2 py-0.5 rounded border ' + roleInfo.badgeColor}>
                         {roleInfo.title}
                       </span>
+                      {/* Auth Sync Status */}
+                      {(() => {
+                        const isRealAuth = Boolean(u.uid && !u.uid.startsWith('user_') && !u.uid.startsWith('master-') && u.uid.length >= 20);
+                        if (isRealAuth) {
+                          return (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center space-x-1" title="Firebase Auth login account is active">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>Auth Active</span>
+                            </span>
+                          );
+                        } else if (u.email && canEditThisUser) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const pass = u.tempPassword || ('Stagecoach#' + Math.floor(1000 + Math.random() * 9000));
+                                const res = await createOrUpdateUser({
+                                  ...u,
+                                  temporaryPassword: pass
+                                });
+                                if (res.success) {
+                                  setSyncStatusMsg(`Provisioned Firebase Auth account for ${u.displayName} (${u.email}) with temporary password: ${res.temporaryPassword || pass}`);
+                                  setTimeout(() => setSyncStatusMsg(null), 6000);
+                                } else {
+                                  setSyncStatusMsg(`Auth notice: ${res.error}`);
+                                  setTimeout(() => setSyncStatusMsg(null), 6000);
+                                }
+                              }}
+                              className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center space-x-1 transition cursor-pointer"
+                              title="Click to create Firebase Auth login credentials"
+                            >
+                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                              <span>⚡ Create Auth</span>
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                       {/* Status Badges */}
                       {u.status === 'suspended' && (
                         <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">

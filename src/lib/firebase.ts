@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth, createUserWithEmailAndPassword, updateProfile, signOut as secondarySignOut } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
@@ -55,8 +55,14 @@ export async function createFirebaseUserAccount(
     }
     
     await secondarySignOut(secondaryAuth);
+    if (secondaryApp) {
+      await deleteApp(secondaryApp).catch(() => {});
+    }
     return { uid: newUser.uid };
   } catch (err: any) {
+    if (secondaryApp) {
+      await deleteApp(secondaryApp).catch(() => {});
+    }
     console.error('Firebase Auth user creation error:', err);
     // If user already exists in Firebase Auth, return an informative error
     return { uid: '', error: err.message || 'Firebase Auth error' };

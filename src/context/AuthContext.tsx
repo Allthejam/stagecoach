@@ -173,7 +173,7 @@ interface AuthContextType {
   promoteUserRole: (uid: string, newRole: UserRole, newRegion?: string, newDepot?: string) => Promise<{ success: boolean; error?: string }>;
   updateUserStatus: (uid: string, status: 'active' | 'suspended' | 'terminated', notes?: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsersList: () => Promise<void>;
-  syncAllUsersToFirestore: () => Promise<{ count: number }>;
+  syncAllUsersToFirestore: () => Promise<{ count: number; authCreatedCount: number }>;
   canManageRole: (targetRole: UserRole) => boolean;
 }
 
@@ -305,19 +305,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const syncAllUsersToFirestore = async (): Promise<{ count: number }> => {
-    if (!isFirebaseConfigured || !db) return { count: 0 };
+  const syncAllUsersToFirestore = async (): Promise<{ count: number; authCreatedCount: number }> => {
+    if (!isFirebaseConfigured || !db) return { count: 0, authCreatedCount: 0 };
     try {
       let savedCount = 0;
+      let authCreatedCount = 0;
+      const updatedList: UserProfile[] = [];
+
       for (const u of usersList) {
-        const cleanUser = sanitizeForFirestore(u);
-        await setDoc(doc(db, 'users', u.uid), cleanUser, { merge: true });
+        let currentUid = u.uid;
+        // If not a real Firebase Auth UID and has email, provision them in Firebase Auth
+        const isRealAuth = Boolean(currentUid && !currentUid.startsWith('user_') && !currentUid.startsWith('master-') && currentUid.length >= 20);
+        
+        if (!isRealAuth && u.email) {
+          const pass = u.tempPassword || ('Stagecoach#' + Math.floor(1000 + Math.random() * 9000));
+          const authRes = await createFirebaseUserAccount(u.email.trim().toLowerCase(), pass, u.displayName.trim());
+          if (authRes.uid) {
+            // Delete old temporary user_ doc from Firestore
+            if (currentUid && currentUid.startsWith('user_')) {
+              await deleteDoc(doc(db, 'users', currentUid)).catch(() => {});
+            }
+            currentUid = authRes.uid;
+            u.uid = authRes.uid;
+            u.tempPassword = pass;
+            authCreatedCount++;
+          }
+        }
+
+        const cleanUser = sanitizeForFirestore({ ...u, uid: currentUid });
+        await setDoc(doc(db, 'users', currentUid), cleanUser, { merge: true });
         savedCount++;
+        updatedList.push({ ...u, uid: currentUid });
       }
-      return { count: savedCount };
+
+      setUsersList(updatedList);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(updatedList));
+      }
+
+      return { count: savedCount, authCreatedCount };
     } catch (err) {
       console.error('Error syncing users to Firestore:', err);
-      return { count: 0 };
+      return { count: 0, authCreatedCount: 0 };
     }
   };
 
@@ -568,31 +597,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let finalUid = userData.uid;
+    const isRealAuth = Boolean(finalUid && !finalUid.startsWith('user_') && !finalUid.startsWith('master-') && finalUid.length >= 20);
     const isNewUser = !finalUid;
-    const tempPass = userData.temporaryPassword || (isNewUser ? 'Stagecoach#' + Math.floor(1000 + Math.random() * 9000) : undefined);
+    const shouldProvisionAuth = !isRealAuth;
+    const tempPass = userData.temporaryPassword || userData.tempPassword || 'Stagecoach#' + Math.floor(1000 + Math.random() * 9000);
 
-    // If creating a brand new user, create Firebase Auth account
-    if (isNewUser) {
-      if (isFirebaseConfigured && tempPass) {
-        const authRes = await createFirebaseUserAccount(
-          userData.email.trim().toLowerCase(),
-          tempPass,
-          userData.displayName.trim()
-        );
+    // If creating a brand new user or migrating a temporary user to a real Firebase Auth account:
+    if (shouldProvisionAuth && isFirebaseConfigured) {
+      const authRes = await createFirebaseUserAccount(
+        userData.email.trim().toLowerCase(),
+        tempPass,
+        userData.displayName.trim()
+      );
 
-        if (authRes.uid) {
-          finalUid = authRes.uid;
-        } else if (authRes.error) {
-          // If error is email already in use, we still permit updating/linking
-          console.warn('Firebase Auth creation notice:', authRes.error);
-          if (!authRes.error.includes('auth/email-already-in-use')) {
-            return { success: false, error: authRes.error };
-          }
+      if (authRes.uid) {
+        // If they had an old temporary user_ ID in Firestore, remove the old document
+        if (finalUid && finalUid.startsWith('user_') && db) {
+          await deleteDoc(doc(db, 'users', finalUid)).catch(() => {});
+        }
+        finalUid = authRes.uid;
+      } else if (authRes.error) {
+        console.warn('Firebase Auth creation notice:', authRes.error);
+        if (!authRes.error.includes('auth/email-already-in-use')) {
+          return { success: false, error: authRes.error };
+        }
+        if (!finalUid) {
           finalUid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
         }
-      } else {
-        finalUid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
       }
+    } else if (!finalUid) {
+      finalUid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     }
 
     const newRecord: UserProfile = {
@@ -608,7 +642,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       jobTitle: userData.jobTitle || '',
       emergencyContactName: userData.emergencyContactName || '',
       emergencyContactPhone: userData.emergencyContactPhone || '',
-      tempPassword: tempPass || userData.tempPassword || '',
+      tempPassword: tempPass,
       mustChangePassword: userData.mustChangePassword !== undefined ? userData.mustChangePassword : isNewUser,
       status: userData.status || 'active',
       createdAt: userData.createdAt || new Date().toISOString(),
@@ -617,7 +651,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Update local list state
     setUsersList((prev) => {
-      const existingIdx = prev.findIndex((u) => u.uid === newRecord.uid || u.email === newRecord.email);
+      const existingIdx = prev.findIndex((u) => u.uid === newRecord.uid || (userData.uid && u.uid === userData.uid) || u.email === newRecord.email);
       let updated;
       if (existingIdx >= 0) {
         updated = [...prev];
