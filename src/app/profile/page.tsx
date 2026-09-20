@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthContext, ROLE_LABELS, UserRole } from '@/context/AuthContext';
+import LoginPage from '@/components/auth/LoginPage';
 import { 
   User, 
   Mail, 
@@ -22,7 +23,8 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Crown
+  Crown,
+  LogOut
 } from 'lucide-react';
 
 const PRESET_AVATARS = [
@@ -36,9 +38,12 @@ const PRESET_AVATARS = [
 
 export default function ProfilePage() {
   const { 
+    isAuthenticated,
+    loading,
     operatorProfile, 
     updateUserProfileDetails, 
     updateUserPassword, 
+    signOut,
     isMasterAdmin,
     effectiveRole
   } = useAuthContext();
@@ -161,6 +166,17 @@ export default function ProfilePage() {
   };
 
   const roleMeta = ROLE_LABELS[operatorProfile.role] || ROLE_LABELS.assessor;
+
+  if (loading) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center text-slate-700">
+        <div className="w-10 h-10 border-4 border-stagecoach-amber border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="font-bold text-xs">Loading Profile...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <LoginPage />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6 pb-20">
@@ -547,6 +563,24 @@ export default function ProfilePage() {
                 Active
               </span>
             </div>
+          </div>
+
+          {/* Session Control Card */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-3">
+            <h3 className="text-xs font-black uppercase text-slate-500 tracking-wider">
+              Active Session
+            </h3>
+            <p className="text-xs text-slate-600">
+              Logged in as <strong className="text-slate-900">{operatorProfile.email || displayName}</strong> ({roleMeta.title})
+            </p>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="w-full py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out of Application</span>
+            </button>
           </div>
         </div>
       </div>

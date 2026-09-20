@@ -821,6 +821,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuestSession(false);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(PROFILE_STORAGE_KEY);
+      window.location.href = '/';
     }
     setIsSideDrawerOpen(false);
   };

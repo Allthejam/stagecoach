@@ -4,7 +4,7 @@ import { RouteProvider } from '@/context/RouteContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { FleetProvider } from '@/context/FleetContext';
 import { PwaProvider } from '@/context/PwaContext';
-import EnterpriseSidebar from '@/components/navigation/EnterpriseSidebar';
+import AppShell from '@/components/navigation/AppShell';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import Toast from '@/components/common/Toast';
 import LoginModal from '@/components/auth/LoginModal';
@@ -58,10 +58,9 @@ export default function RootLayout({
           <FleetProvider>
             <RouteProvider>
               <PwaProvider>
-                <EnterpriseSidebar />
-                <main className="flex-1 w-full relative md:pl-64 min-h-screen flex flex-col transition-all">
+                <AppShell>
                   {children}
-                </main>
+                </AppShell>
                 <LoginModal />
                 <ConfirmModal />
                 <Toast />
