@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { RouteProvider } from '@/context/RouteContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { FleetProvider } from '@/context/FleetContext';
 import Header from '@/components/common/Header';
 import MobileBottomNav from '@/components/common/MobileBottomNav';
 import ConfirmModal from '@/components/common/ConfirmModal';
@@ -42,20 +43,23 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen bg-slate-100 flex flex-col antialiased">
         <AuthProvider>
-          <RouteProvider>
-            <Header />
-            <main className="flex-1 w-full relative">
-              {children}
-            </main>
-            <MobileBottomNav />
-            <SideDrawer />
-            <LoginModal />
-            <ConfirmModal />
-            <Toast />
-          </RouteProvider>
+          <FleetProvider>
+            <RouteProvider>
+              <Header />
+              <main className="flex-1 w-full relative">
+                {children}
+              </main>
+              <MobileBottomNav />
+              <SideDrawer />
+              <LoginModal />
+              <ConfirmModal />
+              <Toast />
+            </RouteProvider>
+          </FleetProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+
 
