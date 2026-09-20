@@ -66,6 +66,41 @@ export default function LeafletMap() {
   const gpsMarkerRef = useRef<L.CircleMarker | null>(null);
   const gpsWatchIdRef = useRef<number | null>(null);
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
+  const wakeLockSentinelRef = useRef<any>(null);
+
+  // Screen Wake Lock handlers to keep mobile screen on during GPS survey
+  const requestWakeLock = async () => {
+    if (typeof window !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        wakeLockSentinelRef.current = await (navigator as any).wakeLock.request('screen');
+      } catch (err) {
+        console.warn('Wake Lock request failed:', err);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockSentinelRef.current) {
+      try {
+        wakeLockSentinelRef.current.release();
+      } catch (err) {}
+      wakeLockSentinelRef.current = null;
+    }
+  };
+
+  // Re-acquire wake lock if mobile user minimizes and comes back while tracking
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isGpsTracking) {
+        await requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [isGpsTracking]);
 
   // Initialize Map ONCE
   useEffect(() => {
@@ -321,12 +356,14 @@ export default function LeafletMap() {
         mapInstanceRef.current.removeLayer(gpsMarkerRef.current);
         gpsMarkerRef.current = null;
       }
+      releaseWakeLock();
       setIsGpsTracking(false);
       setUserGpsPosition(null);
       showToast('GPS Survey Tracking stopped');
     } else {
       setIsGpsTracking(true);
-      showToast('Acquiring high-accuracy GPS fix...');
+      requestWakeLock();
+      showToast('Acquiring GPS fix (Screen Stay-Awake Active)...');
 
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
@@ -351,6 +388,7 @@ export default function LeafletMap() {
         (err) => {
           console.error(err);
           showToast(`GPS Error: ${err.message}`);
+          releaseWakeLock();
           setIsGpsTracking(false);
         },
         {
@@ -645,6 +683,13 @@ export default function LeafletMap() {
                 <Navigation className={`w-4 h-4 ${isGpsTracking ? 'animate-spin' : ''}`} />
                 <span>{isGpsTracking ? 'Stop Live GPS Survey' : 'Start Live GPS Survey'}</span>
               </button>
+
+              <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-800">
+                <span className="text-slate-400">☀️ Screen Stay-Awake:</span>
+                <span className={`font-bold ${isGpsTracking ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {isGpsTracking ? 'ACTIVE (No Sleep)' : 'Standard'}
+                </span>
+              </div>
             </div>
 
           </div>
