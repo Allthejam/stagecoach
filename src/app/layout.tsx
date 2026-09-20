@@ -1,4 +1,4 @@
-﻿import type { Metadata, Viewport } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { RouteProvider } from '@/context/RouteContext';
 import Header from '@/components/common/Header';
@@ -9,6 +9,11 @@ import Toast from '@/components/common/Toast';
 export const metadata: Metadata = {
   title: 'Stagecoach Route Risk Assessment & GPS Survey Platform',
   description: 'Enterprise bus route safety auditing, GPS corridor tracing, 5x5 HSE risk assessment, and driver flashcards.',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/icon-192.png',
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
