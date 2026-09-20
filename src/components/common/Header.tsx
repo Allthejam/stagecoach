@@ -34,6 +34,7 @@ export default function Header() {
     setSelectedRegionFilter,
     selectedGarageFilter,
     setSelectedGarageFilter,
+    availableRegionsForFilter,
     availableGaragesForFilter,
     createNewRoute,
     showConfirmModal,
@@ -43,22 +44,11 @@ export default function Header() {
   } = useRouteContext();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
-  const [modalRegion, setModalRegion] = useState('Stagecoach Highlands');
-  const [modalDepot, setModalDepot] = useState('Aviemore');
+  const [modalRegion, setModalRegion] = useState('');
+  const [modalDepot, setModalDepot] = useState('');
   const [modalRouteNumber, setModalRouteNumber] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [modalAssessor, setModalAssessor] = useState('');
-
-  // When modal region changes, set default garage for that region
-  const handleModalRegionChange = (newReg: string) => {
-    setModalRegion(newReg);
-    const regObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === newReg);
-    if (regObj && regObj.garages.length > 0) {
-      setModalDepot(regObj.garages[0]);
-    } else {
-      setModalDepot('');
-    }
-  };
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +56,14 @@ export default function Header() {
     createNewRoute(
       modalRouteNumber.trim(), 
       modalTitle.trim(), 
-      modalRegion, 
-      modalDepot || 'Depot',
+      modalRegion.trim() || 'Stagecoach UK', 
+      modalDepot.trim() || 'Depot',
       modalAssessor.trim() || undefined
     );
     setModalRouteNumber('');
     setModalTitle('');
+    setModalRegion('');
+    setModalDepot('');
     setModalAssessor('');
     setIsNewModalOpen(false);
   };
@@ -99,7 +91,7 @@ export default function Header() {
               <div className="flex items-center space-x-2">
                 <span className="font-extrabold text-sm sm:text-base tracking-wide text-white">STAGECOACH</span>
                 <span className="text-[10px] bg-stagecoach-amber/20 text-stagecoach-amber border border-stagecoach-amber/30 px-1.5 py-0.2 rounded-full font-semibold">
-                  RRA v2.4 UK
+                  RRA Enterprise
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-300 font-medium line-clamp-1">
@@ -118,12 +110,12 @@ export default function Header() {
                 value={selectedRegionFilter}
                 onChange={(e) => setSelectedRegionFilter(e.target.value)}
                 aria-label="Filter by UK Region"
-                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[160px] truncate"
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[170px] truncate"
               >
-                <option value="" className="bg-slate-900 text-slate-200">All UK Regions</option>
-                {STAGECOACH_UK_REGIONS.map((reg) => (
-                  <option key={reg.regionName} value={reg.regionName} className="bg-slate-900 text-slate-200">
-                    {reg.regionName.replace('Stagecoach ', '')}
+                <option value="" className="bg-slate-900 text-slate-200">🇬🇧 All Regions</option>
+                {availableRegionsForFilter.map((reg) => (
+                  <option key={reg} value={reg} className="bg-slate-900 text-slate-200">
+                    {reg.replace('Stagecoach ', '')}
                   </option>
                 ))}
               </select>
@@ -136,7 +128,7 @@ export default function Header() {
                 value={selectedGarageFilter}
                 onChange={(e) => setSelectedGarageFilter(e.target.value)}
                 aria-label="Filter by Garage / Depot"
-                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[140px] truncate"
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer max-w-[110px] sm:max-w-[150px] truncate"
               >
                 <option value="" className="bg-slate-900 text-slate-200">All Garages</option>
                 {availableGaragesForFilter.map((garage) => (
@@ -171,7 +163,11 @@ export default function Header() {
 
             {/* New Route Button */}
             <button
-              onClick={() => setIsNewModalOpen(true)}
+              onClick={() => {
+                setModalRegion(selectedRegionFilter || 'Stagecoach Highlands');
+                setModalDepot(selectedGarageFilter || 'Aviemore');
+                setIsNewModalOpen(true);
+              }}
               className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors border border-blue-600"
               title="Create New Route Assessment"
             >
@@ -294,7 +290,7 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Modal: New Route Assessment with Region and Garage Selection */}
+      {/* Modal: New Route Assessment with Free-Text Typing & Datalist Suggestions */}
       {isNewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200">
@@ -304,42 +300,54 @@ export default function Header() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">New Route Assessment</h3>
-                <p className="text-xs text-slate-500">Create a UK-wide route survey dossier with Region & Garage attribution</p>
+                <p className="text-xs text-slate-500">Type any Operating Region & Garage, or choose from suggestions</p>
               </div>
             </div>
 
             <form onSubmit={handleCreateRoute} className="space-y-3.5">
               
-              {/* Region Selection */}
+              {/* Region Field (Type freely or choose from datalist) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Region *</label>
-                <select
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Operating Region *</label>
+                  <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                </div>
+                <input
+                  type="text"
+                  required
+                  list="header-modal-regions"
+                  placeholder="e.g. Stagecoach West, Stagecoach London, Stagecoach Highlands..."
                   value={modalRegion}
-                  onChange={(e) => handleModalRegionChange(e.target.value)}
-                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
-                >
-                  {STAGECOACH_UK_REGIONS.map((reg) => (
-                    <option key={reg.regionName} value={reg.regionName}>
-                      {reg.regionName}
-                    </option>
+                  onChange={(e) => setModalRegion(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
+                />
+                <datalist id="header-modal-regions">
+                  {availableRegionsForFilter.map((reg) => (
+                    <option key={reg} value={reg} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
-              {/* Garage / Depot Selection */}
+              {/* Garage / Depot Field (Type freely or choose from datalist) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Garage / Depot *</label>
-                <select
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Operating Garage / Depot *</label>
+                  <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                </div>
+                <input
+                  type="text"
+                  required
+                  list="header-modal-depots"
+                  placeholder="e.g. Gloucester, Bow, Inverness, Sharston, Cheltenham..."
                   value={modalDepot}
                   onChange={(e) => setModalDepot(e.target.value)}
-                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
-                >
-                  {STAGECOACH_UK_REGIONS.find(r => r.regionName === modalRegion)?.garages.map((garage) => (
-                    <option key={garage} value={garage}>
-                      {garage}
-                    </option>
+                  className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
+                />
+                <datalist id="header-modal-depots">
+                  {availableGaragesForFilter.map((garage) => (
+                    <option key={garage} value={garage} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               {/* Route Number & Title */}
@@ -360,7 +368,7 @@ export default function Header() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Aviemore - Cairngorm Mountain"
+                    placeholder="e.g. Gloucester - Cheltenham Express"
                     value={modalTitle}
                     onChange={(e) => setModalTitle(e.target.value)}
                     className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"

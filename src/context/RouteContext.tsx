@@ -39,6 +39,7 @@ interface RouteContextType {
   setSelectedRegionFilter: (region: string) => void;
   selectedGarageFilter: string;
   setSelectedGarageFilter: (garage: string) => void;
+  availableRegionsForFilter: string[];
   availableGaragesForFilter: string[];
   
   updateCurrentRoute: (updater: (prev: RouteAssessment) => RouteAssessment) => void;
@@ -142,26 +143,47 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     load();
   }, []);
 
+  // Compute dynamic list of all available regions (from routes + presets)
+  const availableRegionsForFilter = useMemo(() => {
+    const routeRegions = routes.map(r => r.region || r.operatingCompany).filter(Boolean);
+    const presetRegions = STAGECOACH_UK_REGIONS.map(r => r.regionName);
+    const combined = Array.from(new Set([...routeRegions, ...presetRegions]));
+    return combined.sort((a, b) => a.localeCompare(b));
+  }, [routes]);
+
   // Compute available garages for currently selected region
   const availableGaragesForFilter = useMemo(() => {
     if (!selectedRegionFilter) {
-      // Return unique list of all garages across all regions
-      const allGarages = STAGECOACH_UK_REGIONS.flatMap(r => r.garages);
-      return Array.from(new Set(allGarages)).sort();
+      const routeGarages = routes.map(r => r.depot).filter(Boolean);
+      const presetGarages = STAGECOACH_UK_REGIONS.flatMap(r => r.garages);
+      return Array.from(new Set([...routeGarages, ...presetGarages])).sort((a, b) => a.localeCompare(b));
     }
-    const regionObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === selectedRegionFilter);
-    return regionObj ? [...regionObj.garages].sort() : [];
-  }, [selectedRegionFilter]);
+    
+    // Garages for selected region
+    const routeGarages = routes
+      .filter(r => (r.region || r.operatingCompany)?.toLowerCase() === selectedRegionFilter.toLowerCase())
+      .map(r => r.depot)
+      .filter(Boolean);
+    
+    const presetObj = STAGECOACH_UK_REGIONS.find(r => r.regionName.toLowerCase() === selectedRegionFilter.toLowerCase());
+    const presetGarages = presetObj ? presetObj.garages : [];
+    
+    return Array.from(new Set([...routeGarages, ...presetGarages])).sort((a, b) => a.localeCompare(b));
+  }, [routes, selectedRegionFilter]);
 
   // Handle region filter change with auto garage validation
   const setSelectedRegionFilter = (region: string) => {
     setSelectedRegionFilterState(region);
     if (!region) {
-      // Reset garage filter
       setSelectedGarageFilterState('');
     } else {
-      const regionObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === region);
-      if (regionObj && selectedGarageFilter && !regionObj.garages.includes(selectedGarageFilter)) {
+      // If the current garage is not valid for this new region, reset it
+      const validForRegion = routes
+        .filter(r => (r.region || r.operatingCompany)?.toLowerCase() === region.toLowerCase())
+        .map(r => r.depot?.toLowerCase())
+        .concat((STAGECOACH_UK_REGIONS.find(r => r.regionName.toLowerCase() === region.toLowerCase())?.garages || []).map(g => g.toLowerCase()));
+      
+      if (selectedGarageFilter && !validForRegion.includes(selectedGarageFilter.toLowerCase())) {
         setSelectedGarageFilterState('');
       }
     }
@@ -174,8 +196,12 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   // Filter routes based on 3-tier cascading selections
   const filteredRoutes = useMemo(() => {
     return routes.filter(r => {
-      const matchRegion = !selectedRegionFilter || r.region === selectedRegionFilter || (!r.region && selectedRegionFilter === 'Stagecoach Highlands');
-      const matchGarage = !selectedGarageFilter || r.depot?.toLowerCase().includes(selectedGarageFilter.toLowerCase()) || r.depot === selectedGarageFilter;
+      const rRegion = (r.region || r.operatingCompany || '').toLowerCase();
+      const rDepot = (r.depot || '').toLowerCase();
+      
+      const matchRegion = !selectedRegionFilter || rRegion === selectedRegionFilter.toLowerCase();
+      const matchGarage = !selectedGarageFilter || rDepot === selectedGarageFilter.toLowerCase() || rDepot.includes(selectedGarageFilter.toLowerCase());
+      
       return matchRegion && matchGarage;
     });
   }, [routes, selectedRegionFilter, selectedGarageFilter]);
@@ -215,7 +241,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     setCurrentRouteId(id);
     const target = routes.find((r) => r.id === id);
     if (target) {
-      showToast(`Switched to Route ${target.routeNumber} (${target.region || 'UK Network'})`);
+      showToast(`Switched to Route ${target.routeNumber} (${target.region || target.operatingCompany || 'UK Network'})`);
     }
   };
 
@@ -223,7 +249,6 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     if (!currentRoute) return;
     const updated = updater(currentRoute);
     
-    // Auto-recalculate distance and running time if path or stops changed
     const distanceKm = calculateTotalRouteDistanceKm(updated.pathCoordinates);
     const estTime = calculateEstimatedRunningTime(distanceKm, updated.stops, updated.averageSpeedKph || 22);
     
@@ -252,17 +277,17 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     depot: string, 
     assessorName?: string
   ) => {
-    const defaultRegion = region || 'Stagecoach Highlands';
-    const defaultDepot = depot || 'Aviemore Depot';
-    const assessor = assessorName || 'Field Route Assessor';
+    const customRegion = region?.trim() || 'Stagecoach Highlands';
+    const customDepot = depot?.trim() || 'Aviemore Depot';
+    const assessor = assessorName?.trim() || 'Field Route Assessor';
 
     const newRoute: RouteAssessment = {
       id: `SC-RRA-${Date.now().toString(36).toUpperCase()}`,
-      routeNumber: routeNumber || 'New Route',
-      routeTitle: routeTitle || 'New Survey Corridor',
-      region: defaultRegion,
-      depot: defaultDepot,
-      operatingCompany: defaultRegion,
+      routeNumber: routeNumber?.trim() || 'New Route',
+      routeTitle: routeTitle?.trim() || 'New Survey Corridor',
+      region: customRegion,
+      depot: customDepot,
+      operatingCompany: customRegion,
       assessorName: assessor,
       assessmentDate: new Date().toISOString().split('T')[0],
       reviewDate: new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
@@ -292,16 +317,18 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     };
 
     setRoutes((prev) => [newRoute, ...prev]);
-    // Set filters to match the newly created route so it displays immediately
-    if (selectedRegionFilter && selectedRegionFilter !== defaultRegion) {
-      setSelectedRegionFilterState(defaultRegion);
+    
+    // Update active filters so the new route is immediately visible and selected
+    if (selectedRegionFilter && selectedRegionFilter.toLowerCase() !== customRegion.toLowerCase()) {
+      setSelectedRegionFilterState(customRegion);
     }
-    if (selectedGarageFilter && selectedGarageFilter !== defaultDepot) {
-      setSelectedGarageFilterState(defaultDepot);
+    if (selectedGarageFilter && selectedGarageFilter.toLowerCase() !== customDepot.toLowerCase()) {
+      setSelectedGarageFilterState(customDepot);
     }
+    
     setCurrentRouteId(newRoute.id);
     saveRoute(newRoute);
-    showToast(`Created Route ${newRoute.routeNumber} (${defaultRegion} - ${defaultDepot})`);
+    showToast(`Created Route ${newRoute.routeNumber} (${customRegion} - ${customDepot})`);
   };
 
   const deleteCurrentRoute = async () => {
@@ -326,7 +353,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     setCurrentRouteId('');
     setSelectedRegionFilterState('');
     setSelectedGarageFilterState('');
-    showToast('Cleared all routes - Clean slate ready for testing');
+    showToast('Cleared all routes - Clean slate ready for custom testing');
   };
 
   const loadSampleTemplateRoutes = async () => {
@@ -418,6 +445,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         setSelectedRegionFilter,
         selectedGarageFilter,
         setSelectedGarageFilter,
+        availableRegionsForFilter,
         availableGaragesForFilter,
         updateCurrentRoute,
         saveCurrentRoute,

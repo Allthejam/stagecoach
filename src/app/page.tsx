@@ -44,26 +44,18 @@ export default function HomePage() {
     selectedGarageFilter,
     setSelectedRegionFilter, 
     setSelectedGarageFilter,
+    availableRegionsForFilter,
+    availableGaragesForFilter,
     createNewRoute,
     loadSampleTemplateRoutes 
   } = useRouteContext();
 
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
-  const [initRegion, setInitRegion] = useState('Stagecoach Highlands');
-  const [initDepot, setInitDepot] = useState('Aviemore');
+  const [initRegion, setInitRegion] = useState('');
+  const [initDepot, setInitDepot] = useState('');
   const [initNumber, setInitNumber] = useState('');
   const [initTitle, setInitTitle] = useState('');
   const [initAssessor, setInitAssessor] = useState('');
-
-  const handleRegionChange = (newReg: string) => {
-    setInitRegion(newReg);
-    const regObj = STAGECOACH_UK_REGIONS.find(r => r.regionName === newReg);
-    if (regObj && regObj.garages.length > 0) {
-      setInitDepot(regObj.garages[0]);
-    } else {
-      setInitDepot('');
-    }
-  };
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,12 +63,14 @@ export default function HomePage() {
     createNewRoute(
       initNumber.trim(), 
       initTitle.trim(), 
-      initRegion, 
-      initDepot || 'Depot',
+      initRegion.trim() || 'Stagecoach UK', 
+      initDepot.trim() || 'Depot',
       initAssessor.trim() || undefined
     );
     setInitNumber('');
     setInitTitle('');
+    setInitRegion('');
+    setInitDepot('');
     setInitAssessor('');
     setIsOnboardingModalOpen(false);
   };
@@ -107,8 +101,8 @@ export default function HomePage() {
             </button>
             <button
               onClick={() => {
-                if (selectedRegionFilter) setInitRegion(selectedRegionFilter);
-                if (selectedGarageFilter) setInitDepot(selectedGarageFilter);
+                setInitRegion(selectedRegionFilter || 'Stagecoach UK');
+                setInitDepot(selectedGarageFilter || '');
                 setIsOnboardingModalOpen(true);
               }}
               className="px-4 py-2.5 bg-stagecoach-blue hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5"
@@ -138,12 +132,16 @@ export default function HomePage() {
             </h1>
             
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine across all UK operating companies and depots.
+              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine across all UK operating companies and depots. Type your region and garage to begin.
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
               <button
-                onClick={() => setIsOnboardingModalOpen(true)}
+                onClick={() => {
+                  setInitRegion('Stagecoach Highlands');
+                  setInitDepot('Aviemore');
+                  setIsOnboardingModalOpen(true);
+                }}
                 className="px-6 py-3.5 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 font-black text-sm rounded-xl shadow-lg hover:shadow-xl transition flex items-center space-x-2 cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
@@ -167,9 +165,9 @@ export default function HomePage() {
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-stagecoach-blue">
               <Compass className="w-5 h-5" />
             </div>
-            <h3 className="font-bold text-slate-900 text-base">Nationwide 3-Tier Filter</h3>
+            <h3 className="font-bold text-slate-900 text-base">Custom Regions & Depots</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Filter by all 15 Stagecoach UK Operating Companies (Highlands, Manchester, East Scotland, Midlands, South East, Wales) down to local garages.
+              Full flexibility to type any Operating Region and Garage anywhere in the UK, with instant smart suggestions.
             </p>
           </div>
 
@@ -204,39 +202,51 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Create Route Assessment</h3>
-                  <p className="text-xs text-slate-500">Initiate a survey dossier with Region & Garage attribution</p>
+                  <p className="text-xs text-slate-500">Type any custom Region & Depot or choose from suggestions</p>
                 </div>
               </div>
 
               <form onSubmit={handleCreateRoute} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Region *</label>
-                  <select
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Operating Region *</label>
+                    <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    list="landing-modal-regions"
+                    placeholder="e.g. Stagecoach West, Stagecoach London, Stagecoach Highlands..."
                     value={initRegion}
-                    onChange={(e) => handleRegionChange(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
-                  >
-                    {STAGECOACH_UK_REGIONS.map((reg) => (
-                      <option key={reg.regionName} value={reg.regionName}>
-                        {reg.regionName}
-                      </option>
+                    onChange={(e) => setInitRegion(e.target.value)}
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
+                  />
+                  <datalist id="landing-modal-regions">
+                    {availableRegionsForFilter.map((reg) => (
+                      <option key={reg} value={reg} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Garage / Depot *</label>
-                  <select
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Operating Garage / Depot *</label>
+                    <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    list="landing-modal-depots"
+                    placeholder="e.g. Gloucester, Bow, Inverness, Sharston, Cheltenham..."
                     value={initDepot}
                     onChange={(e) => setInitDepot(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-slate-50 font-medium"
-                  >
-                    {STAGECOACH_UK_REGIONS.find(r => r.regionName === initRegion)?.garages.map((garage) => (
-                      <option key={garage} value={garage}>
-                        {garage}
-                      </option>
+                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
+                  />
+                  <datalist id="landing-modal-depots">
+                    {availableGaragesForFilter.map((garage) => (
+                      <option key={garage} value={garage} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -245,7 +255,7 @@ export default function HomePage() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. 37, 192"
+                      placeholder="e.g. 37, 192, 94"
                       value={initNumber}
                       onChange={(e) => setInitNumber(e.target.value)}
                       className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
@@ -256,7 +266,7 @@ export default function HomePage() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Aviemore - Cairngorm Mountain"
+                      placeholder="e.g. Gloucester - Cheltenham Express"
                       value={initTitle}
                       onChange={(e) => setInitTitle(e.target.value)}
                       className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
