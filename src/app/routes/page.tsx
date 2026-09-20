@@ -63,6 +63,18 @@ export default function RoutesPage() {
   const [modalNumber, setModalNumber] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [modalAssessor, setModalAssessor] = useState('');
+  const [modalError, setModalError] = useState('');
+
+  const openNewRouteModal = () => {
+    // Explicitly reset all boxes to empty strings so nothing is prefilled
+    setModalRegion('');
+    setModalDepot('');
+    setModalNumber('');
+    setModalTitle('');
+    setModalAssessor('');
+    setModalError('');
+    setIsNewModalOpen(true);
+  };
 
   if (loading) {
     return (
@@ -77,19 +89,31 @@ export default function RoutesPage() {
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modalNumber.trim() || !modalTitle.trim()) return;
+    if (
+      !modalRegion.trim() || 
+      !modalDepot.trim() || 
+      !modalNumber.trim() || 
+      !modalTitle.trim() || 
+      !modalAssessor.trim()
+    ) {
+      setModalError('All fields are mandatory. Please fill in Operating Region, Depot, Route Number, Lead Assessor, and Route Title.');
+      return;
+    }
+
     createNewRoute(
       modalNumber.trim(), 
       modalTitle.trim(), 
-      modalRegion.trim() || operatorProfile.region || 'North Scotland', 
-      modalDepot.trim() || operatorProfile.depot || 'Inverness Depot',
-      modalAssessor.trim() || operatorProfile.displayName || undefined
+      modalRegion.trim(), 
+      modalDepot.trim(),
+      modalAssessor.trim()
     );
+
     setModalNumber('');
     setModalTitle('');
     setModalRegion('');
     setModalDepot('');
     setModalAssessor('');
+    setModalError('');
     setIsNewModalOpen(false);
   };
 
@@ -246,12 +270,12 @@ export default function RoutesPage() {
         </div>
       </div>
 
-      {/* Main Route Content */}
-      <div className="flex-1">
+      {/* Main Content Workspace */}
+      <div className="flex-1 w-full bg-slate-100 flex flex-col">
         {!currentRoute ? (
-          <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-6">
-            <div className="w-16 h-16 bg-slate-200 text-slate-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-              <Bus className="w-8 h-8" />
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 max-w-lg mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
+              <MapPin className="w-8 h-8" />
             </div>
             <div className="space-y-1">
               <h2 className="text-2xl font-black text-slate-900">No Active Route Selected</h2>
@@ -260,13 +284,8 @@ export default function RoutesPage() {
               </p>
             </div>
             <button
-              onClick={() => {
-                setModalRegion(selectedRegionFilter || operatorProfile.region || '');
-                setModalDepot(selectedGarageFilter || operatorProfile.depot || '');
-                setModalAssessor(operatorProfile.displayName || '');
-                setIsNewModalOpen(true);
-              }}
-              className="px-6 py-3 bg-stagecoach-navy hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-lg transition"
+              onClick={openNewRouteModal}
+              className="px-6 py-3 bg-stagecoach-navy hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer"
             >
               + Create New Route Risk Assessment
             </button>
@@ -314,7 +333,7 @@ export default function RoutesPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base">Create New Route Risk Assessment</h3>
-                  <p className="text-[11px] text-slate-300">Set route number, operating company, region and garage</p>
+                  <p className="text-[11px] text-slate-300">Enter accurate route, region, and assessor information</p>
                 </div>
               </div>
               <button
@@ -326,27 +345,38 @@ export default function RoutesPage() {
             </div>
 
             <form onSubmit={handleCreateRoute} className="p-5 space-y-4">
+              {modalError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Region</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Operating Region <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={modalRegion}
                     onChange={(e) => setModalRegion(e.target.value)}
-                    placeholder="e.g. North Scotland"
+                    placeholder="Enter Operating Region (e.g. North Scotland)"
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Depot / Garage</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Assigned Depot / Garage <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={modalDepot}
                     onChange={(e) => setModalDepot(e.target.value)}
-                    placeholder="e.g. Inverness Depot"
+                    placeholder="Enter Garage Name (e.g. Inverness Depot)"
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                   />
                 </div>
@@ -354,37 +384,44 @@ export default function RoutesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Route Number / Line</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Route Number / Line <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={modalNumber}
                     onChange={(e) => setModalNumber(e.target.value)}
-                    placeholder="e.g. 10A, X99"
+                    placeholder="e.g. 10A, X99, 1"
                     className="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Lead Safety Assessor</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Lead Safety Assessor <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
+                    required
                     value={modalAssessor}
                     onChange={(e) => setModalAssessor(e.target.value)}
-                    placeholder="Assessor Name"
+                    placeholder="Assessor Full Name"
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Route Title / Corridor Name</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Route Title / Corridor Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={modalTitle}
                   onChange={(e) => setModalTitle(e.target.value)}
-                  placeholder="e.g. Inverness Bus Station to Aviemore Rail Interchange"
+                  placeholder="Enter full corridor description (e.g. Inverness Bus Station to Aviemore Interchange)"
                   className="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                 />
               </div>

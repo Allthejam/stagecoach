@@ -59,25 +59,46 @@ export default function Header() {
   const [modalRouteNumber, setModalRouteNumber] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [modalAssessor, setModalAssessor] = useState('');
+  const [modalError, setModalError] = useState('');
+
+  const openNewRouteModal = () => {
+    // Explicitly reset all inputs to empty strings
+    setModalRegion('');
+    setModalDepot('');
+    setModalRouteNumber('');
+    setModalTitle('');
+    setModalAssessor('');
+    setModalError('');
+    setIsNewModalOpen(true);
+  };
 
   if (!isAuthenticated) return null;
 
-
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modalRouteNumber.trim() || !modalTitle.trim()) return;
+    if (
+      !modalRouteNumber.trim() || 
+      !modalTitle.trim() || 
+      !modalRegion.trim() || 
+      !modalDepot.trim() || 
+      !modalAssessor.trim()
+    ) {
+      setModalError('All fields are mandatory. Please enter Region, Depot, Route #, Assessor, and Title.');
+      return;
+    }
     createNewRoute(
       modalRouteNumber.trim(), 
       modalTitle.trim(), 
-      modalRegion.trim() || 'Region 1', 
-      modalDepot.trim() || 'Main Depot',
-      modalAssessor.trim() || operatorProfile.displayName || undefined
+      modalRegion.trim(), 
+      modalDepot.trim(),
+      modalAssessor.trim()
     );
     setModalRouteNumber('');
     setModalTitle('');
     setModalRegion('');
     setModalDepot('');
     setModalAssessor('');
+    setModalError('');
     setIsNewModalOpen(false);
   };
 
@@ -191,13 +212,8 @@ export default function Header() {
 
             {/* New Route Button */}
             <button
-              onClick={() => {
-                setModalRegion(selectedRegionFilter || operatorProfile.region || '');
-                setModalDepot(selectedGarageFilter || operatorProfile.depot || '');
-                setModalAssessor(operatorProfile.displayName || '');
-                setIsNewModalOpen(true);
-              }}
-              className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors border border-blue-600"
+              onClick={openNewRouteModal}
+              className="inline-flex items-center px-2.5 py-1.5 bg-stagecoach-blue hover:bg-blue-700 text-white rounded-lg font-semibold shadow transition-colors border border-blue-600 cursor-pointer"
               title="Create New Route Assessment"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
@@ -345,6 +361,12 @@ export default function Header() {
             </div>
 
             <form onSubmit={handleCreateRoute} className="space-y-3.5">
+              {modalError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
               
               {/* Region Field (Type freely) */}
               <div>
