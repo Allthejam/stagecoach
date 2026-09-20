@@ -638,9 +638,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setDoc(doc(db, 'users', newRecord.uid), cleanRecord, { merge: true });
       } catch (err: any) {
         console.error('Firestore user save error:', err);
+        const isPerm = err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'));
+        const friendlyError = isPerm
+          ? 'Firebase Permission Denied: Your Firestore Rules in Firebase Console require an update to allow writing to the "users" collection.'
+          : (err.message || 'Could not save user in database.');
+
         return { 
           success: false, 
-          error: err.message || 'Could not save user in database.',
+          error: friendlyError,
           uid: newRecord.uid,
           temporaryPassword: tempPass
         };
