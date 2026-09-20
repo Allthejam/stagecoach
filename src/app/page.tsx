@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouteContext } from '@/context/RouteContext';
+import { useAuthContext } from '@/context/AuthContext';
+import LoginPage from '@/components/auth/LoginPage';
 import HazardRegister from '@/components/hazards/HazardRegister';
 import FleetCompatibility from '@/components/fleet/FleetCompatibility';
 import DriverFlashcard from '@/components/driver/DriverFlashcard';
@@ -13,11 +15,11 @@ import {
   AlertTriangle, 
   ShieldCheck, 
   Plus, 
-  RotateCcw,
-  Sparkles,
-  Layers,
-  Compass,
-  FileCheck2
+  RotateCcw, 
+  Sparkles, 
+  Layers, 
+  Compass, 
+  FileCheck2 
 } from 'lucide-react';
 
 // Dynamically import LeafletMap with SSR disabled
@@ -33,17 +35,19 @@ const LeafletMap = dynamic(() => import('@/components/map/LeafletMap'), {
 });
 
 export default function HomePage() {
+  const { isAuthenticated, loading } = useAuthContext();
+
   const { 
     activeTab, 
     currentRoute, 
     routes, 
     filteredRoutes, 
     selectedRegionFilter, 
-    selectedGarageFilter,
+    selectedGarageFilter, 
     setSelectedRegionFilter, 
-    setSelectedGarageFilter,
-    availableRegionsForFilter,
-    availableGaragesForFilter,
+    setSelectedGarageFilter, 
+    availableRegionsForFilter, 
+    availableGaragesForFilter, 
     createNewRoute 
   } = useRouteContext();
 
@@ -53,6 +57,21 @@ export default function HomePage() {
   const [initNumber, setInitNumber] = useState('');
   const [initTitle, setInitTitle] = useState('');
   const [initAssessor, setInitAssessor] = useState('');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+        <div className="w-12 h-12 rounded-full border-4 border-stagecoach-amber border-t-transparent animate-spin mb-4"></div>
+        <p className="font-bold text-sm">Authenticating Stagecoach Session...</p>
+        <p className="text-xs text-slate-400 mt-1">Connecting to UK Safety Network</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();

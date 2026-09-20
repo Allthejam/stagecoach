@@ -1,13 +1,18 @@
-﻿"use client";
+"use client";
 
 import React from 'react';
 import { useRouteContext, ActiveTab } from '@/context/RouteContext';
+import { useAuthContext } from '@/context/AuthContext';
 import { MapPin, AlertTriangle, Bus, FileText, ShieldCheck } from 'lucide-react';
 
 export default function MobileBottomNav() {
   const { activeTab, setActiveTab, currentRoute } = useRouteContext();
+  const { isAuthenticated } = useAuthContext();
+
+  if (!isAuthenticated) return null;
 
   const navItems: { id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
+
     { id: 'map', label: 'Map', icon: MapPin },
     { id: 'hazards', label: 'Hazards', icon: AlertTriangle, count: currentRoute?.hazards.length || 0 },
     { id: 'fleet', label: 'Fleet', icon: Bus },

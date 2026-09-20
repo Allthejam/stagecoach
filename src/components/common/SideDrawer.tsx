@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext, ROLE_LABELS } from '@/context/AuthContext';
 import { useRouteContext } from '@/context/RouteContext';
+import UserManagementView from '@/components/admin/UserManagementView';
 import { 
   X, 
   User, 
@@ -18,11 +19,12 @@ import {
   BadgeAlert, 
   Download, 
   Wifi, 
-  ChevronRight,
-  Sparkles,
-  PhoneCall,
-  HardHat,
-  Scale
+  ChevronRight, 
+  Sparkles, 
+  PhoneCall, 
+  HardHat, 
+  Scale, 
+  Users 
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -43,7 +45,6 @@ export default function SideDrawer() {
 
   // Profile Form State
   const [displayName, setDisplayName] = useState(operatorProfile.displayName);
-  const [role, setRole] = useState(operatorProfile.role);
   const [region, setRegion] = useState(operatorProfile.region);
   const [depot, setDepot] = useState(operatorProfile.depot);
   const [phone, setPhone] = useState(operatorProfile.phone);
@@ -66,7 +67,6 @@ export default function SideDrawer() {
     e.preventDefault();
     await updateOperatorProfile({
       displayName,
-      role,
       region,
       depot,
       phone,
@@ -111,13 +111,16 @@ export default function SideDrawer() {
     showToast('Database exported as JSON');
   };
 
-  const navTabs: { id: 'profile' | 'contacts' | 'fleet' | 'sync' | 'security'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'profile', label: 'Operator Profile', icon: User },
+  const navTabs: { id: 'profile' | 'users' | 'contacts' | 'fleet' | 'sync' | 'security'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'profile', label: 'My Profile', icon: User },
+    { id: 'users', label: 'Team & Roles', icon: Users },
     { id: 'contacts', label: 'Depot Directory', icon: Phone },
     { id: 'fleet', label: 'Fleet Standards', icon: Bus },
-    { id: 'sync', label: 'Cloud & Database', icon: Cloud },
-    { id: 'security', label: 'Account & Sign Out', icon: ShieldCheck },
+    { id: 'sync', label: 'Cloud Database', icon: Cloud },
+    { id: 'security', label: 'Security & Sign Out', icon: ShieldCheck },
   ];
+
+  const roleInfo = ROLE_LABELS[operatorProfile.role] || ROLE_LABELS.assessor;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden animate-in fade-in duration-200">
@@ -129,7 +132,7 @@ export default function SideDrawer() {
 
       {/* Sliding Drawer Container */}
       <div className="absolute inset-y-0 left-0 max-w-full flex">
-        <div className="w-screen max-w-md sm:max-w-lg bg-white shadow-2xl flex flex-col border-r border-slate-200">
+        <div className="w-screen max-w-md sm:max-w-xl bg-white shadow-2xl flex flex-col border-r border-slate-200">
           
           {/* Top Header Card */}
           <div className="bg-stagecoach-navy text-white p-5 relative overflow-hidden border-b border-slate-800">
@@ -141,11 +144,16 @@ export default function SideDrawer() {
                   {operatorProfile.displayName ? operatorProfile.displayName.charAt(0).toUpperCase() : 'SC'}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-white line-clamp-1">
-                    {operatorProfile.displayName || 'Stagecoach Assessor'}
-                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-extrabold text-base text-white line-clamp-1">
+                      {operatorProfile.displayName || 'Stagecoach Assessor'}
+                    </h3>
+                    <span className={'text-[10px] font-bold px-2 py-0.5 rounded border ' + roleInfo.badgeColor}>
+                      {roleInfo.title}
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-300 font-medium line-clamp-1">
-                    {operatorProfile.role || 'Route Risk Assessor'}
+                    {operatorProfile.email || 'Stagecoach Operations'}
                   </p>
                 </div>
               </div>
@@ -170,7 +178,7 @@ export default function SideDrawer() {
 
               <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/30 text-emerald-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>{user ? 'Authenticated' : 'Offline Mode'}</span>
+                <span>{user ? 'Cloud Active' : 'Field Offline'}</span>
               </span>
             </div>
           </div>
@@ -204,12 +212,12 @@ export default function SideDrawer() {
             {activeDrawerTab === 'profile' && (
               <form onSubmit={handleSaveProfile} className="space-y-4 animate-in fade-in duration-150">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Personal & Assessor Information</h4>
+                  <h4 className="text-sm font-bold text-slate-900">Personal & Assessor Credentials</h4>
                   <p className="text-xs text-slate-500">Details attached to risk assessment signatures and driver flashcards.</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name / Assessor Name</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
                   <input
                     type="text"
                     value={displayName}
@@ -220,16 +228,7 @@ export default function SideDrawer() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Official Role</label>
-                    <input
-                      type="text"
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Assessor Badge / ID</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Assessor ID Badge</label>
                     <input
                       type="text"
                       value={assessorNumber}
@@ -237,11 +236,20 @@ export default function SideDrawer() {
                       className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Direct Phone</label>
+                    <input
+                      type="text"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Region</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Home Region</label>
                     <input
                       type="text"
                       value={region}
@@ -250,7 +258,7 @@ export default function SideDrawer() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Home Depot</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Operating Depot</label>
                     <input
                       type="text"
                       value={depot}
@@ -260,46 +268,48 @@ export default function SideDrawer() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Direct Contact Phone</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                  />
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-stagecoach-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center space-x-2 transition"
+                  >
+                    <Save className="w-4 h-4 text-stagecoach-amber" />
+                    <span>Save Profile Changes</span>
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-stagecoach-blue hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Profile Changes</span>
-                </button>
               </form>
             )}
 
-            {/* 2. DEPOT & EMERGENCY DIRECTORY TAB */}
+            {/* 2. TEAM & ROLES HIERARCHY TAB */}
+            {activeDrawerTab === 'users' && (
+              <div className="animate-in fade-in duration-150">
+                <UserManagementView />
+              </div>
+            )}
+
+            {/* 3. DEPOT DIRECTORY & EMERGENCY CONTACTS TAB */}
             {activeDrawerTab === 'contacts' && (
               <form onSubmit={handleSaveContacts} className="space-y-4 animate-in fade-in duration-150">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Regional Depot & Emergency Contacts</h4>
-                  <p className="text-xs text-slate-500">Emergency numbers embedded into Driver Flashcards and Governance notices.</p>
+                  <h4 className="text-sm font-bold text-slate-900">Regional Emergency & Depot Directory</h4>
+                  <p className="text-xs text-slate-500">Contact details printed on driver flashcards for critical incidents.</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Operations Control Room Telephone</label>
-                  <input
-                    type="text"
-                    value={controlRoomPhone}
-                    onChange={(e) => setControlRoomPhone(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">24/7 Regional Control Room Hotline</label>
+                  <div className="relative">
+                    <PhoneCall className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={controlRoomPhone}
+                      onChange={(e) => setControlRoomPhone(e.target.value)}
+                      className="w-full text-sm pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Depot Duty Operations Manager</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Depot Duty Manager Contact</label>
                   <input
                     type="text"
                     value={depotManager}
@@ -309,7 +319,7 @@ export default function SideDrawer() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Engineering Breakdown Hotline</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Fleet Breakdown & Engineering Dispatch</label>
                   <input
                     type="text"
                     value={fleetEngineeringPhone}
@@ -319,7 +329,7 @@ export default function SideDrawer() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Police / Highways Liaison Number</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Police Liaison / Emergency</label>
                   <input
                     type="text"
                     value={policeLiaison}
@@ -328,159 +338,150 @@ export default function SideDrawer() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-stagecoach-blue hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Depot Contacts</span>
-                </button>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-stagecoach-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center space-x-2 transition"
+                  >
+                    <Save className="w-4 h-4 text-stagecoach-amber" />
+                    <span>Save Emergency Contacts</span>
+                  </button>
+                </div>
               </form>
             )}
 
-            {/* 3. FLEET MASTER STANDARDS TAB */}
+            {/* 4. FLEET MASTER CLEARANCES TAB */}
             {activeDrawerTab === 'fleet' && (
               <form onSubmit={handleSaveFleet} className="space-y-4 animate-in fade-in duration-150">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Regional Fleet Master Standards</h4>
-                  <p className="text-xs text-slate-500">Default safety thresholds applied to all new route risk surveys.</p>
+                  <p className="text-xs text-slate-500">Default engineering parameters used for vehicle clearances.</p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Max Double Decker Vehicle Height (Metres)</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    value={maxHeight}
-                    onChange={(e) => setMaxHeight(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">UK standard double-decker height clearance is typically 4.40m.</p>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Max Double Decker Height (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={maxHeight}
+                      onChange={(e) => setMaxHeight(Number(e.target.value))}
+                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                    />
+                    <span className="text-[11px] text-slate-500 mt-0.5 block">Standard Stagecoach DD height is ~4.40m</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Minimum Safe Turning Circle Radius (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={minTurningRadius}
+                      onChange={(e) => setMinTurningRadius(Number(e.target.value))}
+                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 block">Allow EV Fleet by Default</span>
+                      <span className="text-[11px] text-slate-500">Enable Electric Bus corridor compatibility</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={evAllowed}
+                      onChange={(e) => setEvAllowed(e.target.checked)}
+                      className="w-4 h-4 text-stagecoach-blue rounded border-slate-300 focus:ring-stagecoach-blue"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Minimum Turning Radius Requirement (Metres)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={minTurningRadius}
-                    onChange={(e) => setMinTurningRadius(Number(e.target.value))}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stagecoach-blue"
-                  />
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-stagecoach-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center space-x-2 transition"
+                  >
+                    <Save className="w-4 h-4 text-stagecoach-amber" />
+                    <span>Save Fleet Standards</span>
+                  </button>
                 </div>
-
-                <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <input
-                    type="checkbox"
-                    id="evCheck"
-                    checked={evAllowed}
-                    onChange={(e) => setEvAllowed(e.target.checked)}
-                    className="w-4 h-4 text-stagecoach-blue rounded focus:ring-stagecoach-blue cursor-pointer"
-                  />
-                  <label htmlFor="evCheck" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                    Enable Electric Bus (EV) allocation by default
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-stagecoach-blue hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Save Fleet Standards</span>
-                </button>
               </form>
             )}
 
-            {/* 4. CLOUD & DATABASE TAB */}
+            {/* 5. CLOUD DATABASE & BACKUP TAB */}
             {activeDrawerTab === 'sync' && (
               <div className="space-y-4 animate-in fade-in duration-150">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Cloud Sync & Database Health</h4>
-                  <p className="text-xs text-slate-500">Live connection to Google Firebase Firestore backend.</p>
+                  <h4 className="text-sm font-bold text-slate-900">Database & Cloud Synchronization</h4>
+                  <p className="text-xs text-slate-500">Export route assessments or verify Firestore cloud sync.</p>
                 </div>
 
-                <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">Firebase Firestore</span>
-                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      <span>{isFirebaseConfigured ? 'Connected' : 'Offline'}</span>
+                    <span className="text-xs font-semibold text-slate-700">Firestore Cloud Backend</span>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {isFirebaseConfigured ? 'stagecoach-fc943' : 'Local Offline'}
                     </span>
                   </div>
-                  
-                  <div className="text-xs text-slate-600 space-y-1 font-mono text-[11px]">
-                    <div>Project ID: <strong className="text-slate-900">stagecoach-fc943</strong></div>
-                    <div>Total Routes in DB: <strong className="text-slate-900">{routes.length}</strong></div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700">Total Loaded Routes in DB</span>
+                    <span className="text-xs font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {routes.length} Active
+                    </span>
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="pt-2">
                   <button
                     onClick={handleExportData}
-                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 cursor-pointer"
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition shadow-sm"
                   >
-                    <Download className="w-4 h-4 text-stagecoach-amber" />
-                    <span>Export All Routes to JSON Backup</span>
+                    <Download className="w-4 h-4 text-slate-600" />
+                    <span>Export Full JSON Database Backup</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* 5. SECURITY & SIGN OUT TAB */}
+            {/* 6. SECURITY & SIGN OUT TAB */}
             {activeDrawerTab === 'security' && (
               <div className="space-y-4 animate-in fade-in duration-150">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Account & Security</h4>
-                  <p className="text-xs text-slate-500">Manage your active authentication session and security credentials.</p>
+                  <h4 className="text-sm font-bold text-slate-900">Account Security & Session</h4>
+                  <p className="text-xs text-slate-500">Manage your active authentication session.</p>
                 </div>
 
-                {user ? (
-                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-stagecoach-blue" />
-                      <span className="text-xs text-slate-700 font-semibold">{user.email}</span>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Session Status</span>
+                    <span className="font-semibold text-slate-800">{user ? 'Signed In (Cloud)' : 'Field Offline'}</span>
+                  </div>
+                  {user && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Firebase User UID</span>
+                      <span className="font-mono text-[11px] text-slate-700 truncate max-w-[170px]">{user.uid}</span>
                     </div>
-                    <div className="text-[11px] text-slate-500">
-                      Signed in via Firebase Authentication
-                    </div>
+                  )}
+                </div>
 
-                    <button
-                      onClick={signOut}
-                      className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Log Out of Safety Portal</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 text-center">
-                    <p className="text-xs text-slate-600">
-                      You are currently running in <strong>Offline Field Assessor Mode</strong>.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setIsSideDrawerOpen(false);
-                        setIsLoginModalOpen(true);
-                      }}
-                      className="w-full py-2.5 bg-stagecoach-blue hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      <User className="w-4 h-4" />
-                      <span>Sign In with Firebase Account</span>
-                    </button>
-                  </div>
-                )}
+                <div className="pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => signOut()}
+                    className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out of Stagecoach RRA</span>
+                  </button>
+                </div>
               </div>
             )}
 
           </div>
-
-          {/* Drawer Footer */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
-            <span className="font-semibold text-slate-600">Stagecoach RRA Enterprise</span>
-            <span className="font-mono text-[10px]">v2.4 Live UK</span>
-          </div>
-
         </div>
       </div>
     </div>

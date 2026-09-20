@@ -79,7 +79,7 @@ export default function LoginModal() {
 
   const handleGuestLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    offlineGuestLogin(guestName, guestRegion, guestDepot);
+    offlineGuestLogin(guestName, 'assessor', guestRegion, guestDepot);
     showToast('Switched to Offline Assessor Mode (' + (guestName || 'Field Assessor') + ')');
   };
 

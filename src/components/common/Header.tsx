@@ -46,6 +46,7 @@ export default function Header() {
 
   const {
     user,
+    isAuthenticated,
     operatorProfile,
     setIsSideDrawerOpen,
     setIsLoginModalOpen,
@@ -58,6 +59,9 @@ export default function Header() {
   const [modalRouteNumber, setModalRouteNumber] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [modalAssessor, setModalAssessor] = useState('');
+
+  if (!isAuthenticated) return null;
+
 
   const handleCreateRoute = (e: React.FormEvent) => {
     e.preventDefault();
