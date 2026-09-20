@@ -22,7 +22,11 @@ import {
   Lock,
   Cloud,
   CloudUpload,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  UserX,
+  Power,
+  Award
 } from 'lucide-react';
 
 export default function UserManagementView() {
@@ -31,18 +35,27 @@ export default function UserManagementView() {
     usersList, 
     createOrUpdateUser, 
     deleteUserRecord, 
+    promoteUserRole,
+    updateUserStatus,
     canManageRole,
     syncAllUsersToFirestore,
     refreshUsersList
   } = useAuthContext();
 
-  const { availableRegionsForFilter, availableGaragesForFilter } = useRouteContext();
+  const { availableRegionsForFilter, availableGaragesForFilter, showConfirmModal } = useRouteContext();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+
+  // Promotion Modal State
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promotingUser, setPromotingUser] = useState<UserProfile | null>(null);
+  const [promoteRole, setPromoteRole] = useState<UserRole>('depot_admin');
+  const [promoteRegion, setPromoteRegion] = useState('');
+  const [promoteDepot, setPromoteDepot] = useState('');
 
   // Modal State for Add/Edit User
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,7 +67,7 @@ export default function UserManagementView() {
   const [formDepot, setFormDepot] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formAssessorNumber, setFormAssessorNumber] = useState('');
-  const [formStatus, setFormStatus] = useState<'active' | 'suspended'>('active');
+  const [formStatus, setFormStatus] = useState<'active' | 'suspended' | 'terminated'>('active');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -312,23 +325,49 @@ export default function UserManagementView() {
           filteredUsers.map((u) => {
             const roleInfo = ROLE_LABELS[u.role] || ROLE_LABELS.assessor;
             const canEditThisUser = canManageRole(u.role);
+            const isSelf = u.uid === operatorProfile.uid;
 
             return (
               <div
                 key={u.uid}
-                className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition-all shadow-md flex flex-wrap items-center justify-between gap-3"
+                className={`bg-slate-900/90 border rounded-2xl p-4 transition-all shadow-md flex flex-wrap items-center justify-between gap-3 ${
+                  u.status === 'terminated' ? 'border-red-900/50 opacity-60' :
+                  u.status === 'suspended' ? 'border-amber-900/50' :
+                  'border-slate-800 hover:border-slate-700'
+                }`}
               >
                 {/* User Info */}
                 <div className="flex items-center space-x-3.5 min-w-[200px]">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-sm text-stagecoach-amber">
+                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-black text-sm ${
+                    u.status === 'terminated' ? 'bg-red-950 border-red-800 text-red-400' :
+                    u.status === 'suspended' ? 'bg-amber-950 border-amber-800 text-amber-400' :
+                    'bg-slate-800 border-slate-700 text-stagecoach-amber'
+                  }`}>
                     {u.displayName ? u.displayName.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                       <span className="font-bold text-sm text-white">{u.displayName}</span>
                       <span className={'text-[10px] font-bold px-2 py-0.5 rounded border ' + roleInfo.badgeColor}>
                         {roleInfo.title}
                       </span>
+                      {/* Status Badges */}
+                      {u.status === 'suspended' && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          Suspended
+                        </span>
+                      )}
+                      {u.status === 'terminated' && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40">
+                          Terminated
+                        </span>
+                      )}
+                      {u.promotedAt && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center space-x-1">
+                          <Award className="w-2.5 h-2.5 text-amber-400" />
+                          <span>Promoted</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-0.5">
                       <span className="flex items-center space-x-1">
@@ -337,6 +376,12 @@ export default function UserManagementView() {
                       </span>
                       {u.assessorNumber && (
                         <span className="text-slate-500 font-mono">[{u.assessorNumber}]</span>
+                      )}
+                      {u.phone && (
+                        <span className="text-slate-500 flex items-center space-x-1">
+                          <Phone className="w-3 h-3" />
+                          <span>{u.phone}</span>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -354,22 +399,86 @@ export default function UserManagementView() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center space-x-2">
+                {/* Lifecycle Actions */}
+                <div className="flex items-center space-x-1.5">
                   {canEditThisUser ? (
                     <>
+                      {/* Promote Role Button */}
+                      <button
+                        onClick={() => {
+                          setPromotingUser(u);
+                          setPromoteRole(assignableRoles[0] || 'depot_admin');
+                          setPromoteRegion(u.region || operatorProfile.region || '');
+                          setPromoteDepot(u.depot || operatorProfile.depot || '');
+                          setIsPromoteModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border border-amber-500/30 rounded-lg text-xs font-bold transition flex items-center space-x-1"
+                        title="Promote or Transfer User"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        <span>Promote</span>
+                      </button>
+
+                      {/* Suspend / Reactivate Button */}
+                      {!isSelf && (
+                        <button
+                          onClick={() => {
+                            const newStatus = u.status === 'suspended' ? 'active' : 'suspended';
+                            updateUserStatus(u.uid, newStatus);
+                          }}
+                          className={`p-1.5 rounded-lg border transition ${
+                            u.status === 'suspended'
+                              ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300 hover:bg-emerald-900/80'
+                              : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-300 hover:bg-amber-950/40'
+                          }`}
+                          title={u.status === 'suspended' ? 'Reactivate Account' : 'Suspend Account'}
+                        >
+                          <Power className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* Terminate Button */}
+                      {!isSelf && u.status !== 'terminated' && (
+                        <button
+                          onClick={() => {
+                            showConfirmModal({
+                              title: `Terminate ${u.displayName}?`,
+                              message: `Are you sure you want to terminate employment/access for ${u.displayName}? Their safety audit records will remain intact in history.`,
+                              confirmText: 'Terminate Access',
+                              isDestructive: true,
+                              onConfirm: () => updateUserStatus(u.uid, 'terminated', 'Employment terminated'),
+                            });
+                          }}
+                          className="p-1.5 text-rose-400 hover:text-rose-200 bg-rose-950/20 border border-rose-900/40 rounded-lg hover:bg-rose-950/60 transition"
+                          title="Terminate User"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* Edit Details Button */}
                       <button
                         onClick={() => openEditModal(u)}
                         className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-                        title="Edit User Role & Permissions"
+                        title="Edit User Details"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      {u.uid !== operatorProfile.uid && (
+
+                      {/* Hard Delete Button */}
+                      {!isSelf && (
                         <button
-                          onClick={() => deleteUserRecord(u.uid)}
+                          onClick={() => {
+                            showConfirmModal({
+                              title: `Delete ${u.displayName}?`,
+                              message: `Permanently erase user record for ${u.displayName} from the database? This cannot be undone.`,
+                              confirmText: 'Delete Record',
+                              isDestructive: true,
+                              onConfirm: () => deleteUserRecord(u.uid),
+                            });
+                          }}
                           className="p-1.5 text-red-400 hover:text-red-300 rounded-lg hover:bg-red-950/40 transition"
-                          title="Remove user"
+                          title="Delete User Record"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -541,6 +650,98 @@ export default function UserManagementView() {
                   className="px-5 py-2 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow transition disabled:opacity-50"
                 >
                   {isSaving ? 'Saving...' : editingUser ? 'Update User' : 'Add User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Promotion / Transfer Modal */}
+      {isPromoteModalOpen && promotingUser && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center font-black">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Promote / Transfer User</h3>
+                  <p className="text-[11px] text-slate-400">Promote {promotingUser.displayName} to a new role tier</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPromoteModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await promoteUserRole(
+                  promotingUser.uid,
+                  promoteRole,
+                  promoteRegion.trim() || undefined,
+                  promoteDepot.trim() || undefined
+                );
+                setIsPromoteModalOpen(false);
+              }}
+              className="p-5 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Promote to Role Tier</label>
+                <select
+                  value={promoteRole}
+                  onChange={(e) => setPromoteRole(e.target.value as UserRole)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-stagecoach-amber cursor-pointer font-bold"
+                >
+                  {assignableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r].title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Operating Region</label>
+                <input
+                  type="text"
+                  value={promoteRegion}
+                  onChange={(e) => setPromoteRegion(e.target.value)}
+                  placeholder="e.g. Highlands & Islands"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-stagecoach-amber"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Garage / Depot</label>
+                <input
+                  type="text"
+                  value={promoteDepot}
+                  onChange={(e) => setPromoteDepot(e.target.value)}
+                  placeholder="e.g. Inverness HQ"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-stagecoach-amber"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsPromoteModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow transition"
+                >
+                  Confirm Promotion
                 </button>
               </div>
             </form>

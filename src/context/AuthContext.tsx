@@ -42,9 +42,13 @@ export interface UserProfile {
   depot: string;
   phone: string;
   assessorNumber: string;
-  status: 'active' | 'suspended';
+  status: 'active' | 'suspended' | 'terminated';
   createdAt: string;
+  updatedAt?: string;
+  promotedAt?: string;
   lastLoginAt?: string;
+  terminationDate?: string;
+  notes?: string;
 }
 
 export interface OperatorProfile extends UserProfile {
@@ -142,6 +146,8 @@ interface AuthContextType {
   offlineGuestLogin: (name?: string, role?: UserRole, region?: string, depot?: string) => void;
   createOrUpdateUser: (userData: Partial<UserProfile> & { email: string; displayName: string }) => Promise<{ success: boolean; error?: string }>;
   deleteUserRecord: (uid: string) => Promise<{ success: boolean; error?: string }>;
+  promoteUserRole: (uid: string, newRole: UserRole, newRegion?: string, newDepot?: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserStatus: (uid: string, status: 'active' | 'suspended' | 'terminated', notes?: string) => Promise<{ success: boolean; error?: string }>;
   refreshUsersList: () => Promise<void>;
   syncAllUsersToFirestore: () => Promise<{ count: number }>;
   canManageRole: (targetRole: UserRole) => boolean;
@@ -505,6 +511,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
+  const promoteUserRole = async (
+    uid: string, 
+    newRole: UserRole, 
+    newRegion?: string, 
+    newDepot?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const target = usersList.find((u) => u.uid === uid);
+    if (!target) return { success: false, error: 'User not found.' };
+
+    const updatedUser: UserProfile = {
+      ...target,
+      role: newRole,
+      region: newRegion !== undefined ? newRegion : target.region,
+      depot: newDepot !== undefined ? newDepot : target.depot,
+      promotedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setUsersList((prev) => {
+      const list = prev.map((u) => (u.uid === uid ? updatedUser : u));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(list));
+      }
+      return list;
+    });
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'users', uid), updatedUser, { merge: true });
+      } catch (err: any) {
+        console.error('Firestore promote user error:', err);
+        return { success: false, error: err.message || 'Could not update user in database.' };
+      }
+    }
+
+    return { success: true };
+  };
+
+  const updateUserStatus = async (
+    uid: string, 
+    status: 'active' | 'suspended' | 'terminated',
+    notes?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const target = usersList.find((u) => u.uid === uid);
+    if (!target) return { success: false, error: 'User not found.' };
+
+    const updatedUser: UserProfile = {
+      ...target,
+      status,
+      terminationDate: status === 'terminated' ? new Date().toISOString() : undefined,
+      notes: notes !== undefined ? notes : target.notes,
+      updatedAt: new Date().toISOString()
+    };
+
+    setUsersList((prev) => {
+      const list = prev.map((u) => (u.uid === uid ? updatedUser : u));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(list));
+      }
+      return list;
+    });
+
+    if (isFirebaseConfigured && db) {
+      try {
+        await setDoc(doc(db, 'users', uid), updatedUser, { merge: true });
+      } catch (err: any) {
+        console.error('Firestore update status error:', err);
+        return { success: false, error: err.message || 'Could not update status in database.' };
+      }
+    }
+
+    return { success: true };
+  };
+
   const signIn = async (email: string, pass: string) => {
     if (!isFirebaseConfigured || !auth) {
       return { success: false, error: 'Firebase Auth is not connected.' };
@@ -599,6 +679,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         offlineGuestLogin,
         createOrUpdateUser,
         deleteUserRecord,
+        promoteUserRole,
+        updateUserStatus,
         refreshUsersList,
         syncAllUsersToFirestore,
         canManageRole
