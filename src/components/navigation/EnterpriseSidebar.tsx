@@ -26,7 +26,9 @@ import {
   PhoneCall, 
   Crown,
   Download,
-  Smartphone
+  Smartphone,
+  UserCheck,
+  BadgeCheck
 } from 'lucide-react';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { usePwa } from '@/context/PwaContext';
@@ -89,6 +91,7 @@ export default function EnterpriseSidebar() {
               { label: 'Route Risk Assessments', href: '/routes', icon: MapPin },
               { label: 'HSE Governance & Sign-Off', href: '/governance', icon: ShieldCheck, badge: '5x5' },
               { label: 'Safety Reports & PDF', href: '/reports', icon: FileText },
+              { label: 'My Profile & ID Pass', href: '/profile', icon: UserCheck },
               { label: 'System & Security Settings', href: '/settings', icon: Settings },
             ]
           }
@@ -111,6 +114,7 @@ export default function EnterpriseSidebar() {
               { label: 'Route Risk Assessments', href: '/routes', icon: MapPin },
               { label: 'HSE Compliance Sign-Off', href: '/governance', icon: ShieldCheck },
               { label: 'Safety Dossiers & Briefings', href: '/reports', icon: FileText },
+              { label: 'My Profile & ID Pass', href: '/profile', icon: UserCheck },
               { label: 'Regional Defaults', href: '/settings', icon: Settings },
             ]
           }
@@ -132,6 +136,7 @@ export default function EnterpriseSidebar() {
             items: [
               { label: 'Route Risk Assessments', href: '/routes', icon: MapPin },
               { label: 'Driver Flashcards & A4 Briefings', href: '/reports', icon: FileText },
+              { label: 'My Profile & ID Pass', href: '/profile', icon: UserCheck },
               { label: 'Depot Settings', href: '/settings', icon: Settings },
             ]
           }
@@ -152,6 +157,7 @@ export default function EnterpriseSidebar() {
             title: 'Compliance & Profile',
             items: [
               { label: 'HSE Assessment Sign-Off', href: '/governance', icon: ShieldCheck },
+              { label: 'My Profile & ID Pass', href: '/profile', icon: UserCheck },
               { label: 'Assessor Credentials', href: '/settings', icon: Settings },
             ]
           }
@@ -226,21 +232,38 @@ export default function EnterpriseSidebar() {
 
         {/* Current User & Role Identity Card */}
         <div className="p-3.5 mx-3 my-3 rounded-xl bg-slate-900/90 border border-slate-800 shadow-inner">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-stagecoach-amber text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                {operatorProfile.displayName ? operatorProfile.displayName.charAt(0).toUpperCase() : 'U'}
+          <Link
+            href="/profile"
+            onClick={() => setIsMobileOpen(false)}
+            className="flex items-start justify-between gap-2 group cursor-pointer"
+            title="View & Edit My Profile"
+          >
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-stagecoach-amber text-slate-950 font-black text-xs flex items-center justify-center shrink-0 overflow-hidden border border-amber-400/60 group-hover:scale-105 transition-transform">
+                {operatorProfile.avatarUrl ? (
+                  <img src={operatorProfile.avatarUrl} alt={operatorProfile.displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{operatorProfile.displayName ? operatorProfile.displayName.charAt(0).toUpperCase() : 'U'}</span>
+                )}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate max-w-[130px]">
-                  {operatorProfile.displayName}
-                </p>
+                <div className="flex items-center space-x-1.5">
+                  <p className="text-xs font-bold text-white truncate max-w-[120px] group-hover:text-amber-300 transition-colors">
+                    {operatorProfile.displayName}
+                  </p>
+                  {operatorProfile.mustChangePassword && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" title="Password update required" />
+                  )}
+                </div>
                 <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border mt-0.5 ${roleInfo.badgeColor}`}>
                   {roleInfo.title}
                 </span>
               </div>
             </div>
-          </div>
+            <span className="text-[10px] text-slate-500 group-hover:text-amber-400 font-semibold transition mt-0.5">
+              Edit ➔
+            </span>
+          </Link>
           
           <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
             <span className="truncate max-w-[120px]">{operatorProfile.region || 'UK Network'}</span>

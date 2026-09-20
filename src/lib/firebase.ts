@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth, Auth, createUserWithEmailAndPassword, updateProfile, signOut as secondarySignOut } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -31,4 +31,36 @@ try {
   console.warn('Firebase initialization skipped or failed; using offline LocalStorage mode.', e);
 }
 
-export { app, db, auth, storage, isFirebaseConfigured };
+export async function createFirebaseUserAccount(
+  email: string, 
+  temporaryPassword: string, 
+  displayName: string
+): Promise<{ uid: string; error?: string }> {
+  if (!isFirebaseConfigured) {
+    // Generate fallback UID in offline/local mode
+    return { uid: 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) };
+  }
+
+  const secondaryAppName = 'SecondaryAuthApp_' + Date.now();
+  let secondaryApp: FirebaseApp | null = null;
+  try {
+    secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+    const secondaryAuth = getAuth(secondaryApp);
+    
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, temporaryPassword);
+    const newUser = userCredential.user;
+    
+    if (displayName) {
+      await updateProfile(newUser, { displayName });
+    }
+    
+    await secondarySignOut(secondaryAuth);
+    return { uid: newUser.uid };
+  } catch (err: any) {
+    console.error('Firebase Auth user creation error:', err);
+    // If user already exists in Firebase Auth, return an informative error
+    return { uid: '', error: err.message || 'Firebase Auth error' };
+  }
+}
+
+export { app, db, auth, storage, isFirebaseConfigured, firebaseConfig };

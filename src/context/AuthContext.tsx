@@ -6,7 +6,9 @@ import {
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut, 
   sendPasswordResetEmail,
-  onAuthStateChanged 
+  onAuthStateChanged,
+  updatePassword,
+  updateProfile as firebaseUpdateProfile
 } from 'firebase/auth';
 import { 
   doc, 
@@ -16,7 +18,7 @@ import {
   getDocs, 
   deleteDoc 
 } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
+import { auth, db, isFirebaseConfigured, createFirebaseUserAccount } from '@/lib/firebase';
 
 export type UserRole = 'master_admin' | 'regional_admin' | 'depot_admin' | 'assessor';
 
@@ -42,6 +44,12 @@ export interface UserProfile {
   depot: string;
   phone: string;
   assessorNumber: string;
+  avatarUrl?: string;
+  jobTitle?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  tempPassword?: string;
+  mustChangePassword?: boolean;
   status: 'active' | 'suspended' | 'terminated';
   createdAt: string;
   updatedAt?: string;
@@ -88,6 +96,8 @@ const DEFAULT_PROFILE: OperatorProfile = {
   depot: 'All Depots',
   phone: '+44 (0) 141 555 0199',
   assessorNumber: 'SC-HQ-001',
+  avatarUrl: '',
+  jobTitle: 'Chief Executive Officer / Master Administrator',
   status: 'active',
   createdAt: '2026-01-01T00:00:00.000Z',
   emergencyContacts: {
@@ -113,6 +123,8 @@ const DEFAULT_USERS_LIST: UserProfile[] = [
     depot: 'All Depots',
     phone: '+44 (0) 141 555 0100',
     assessorNumber: 'SC-MASTER-01',
+    avatarUrl: '',
+    jobTitle: 'Master Administrator',
     status: 'active',
     createdAt: '2026-01-01T00:00:00.000Z'
   }
@@ -121,6 +133,16 @@ const DEFAULT_USERS_LIST: UserProfile[] = [
 const PROFILE_STORAGE_KEY = 'stagecoach_rra_operator_profile_v2';
 const USERS_CACHE_KEY = 'stagecoach_rra_users_cache_v2';
 const SESSION_KEY = 'stagecoach_rra_session_active_v2';
+
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      clean[key] = obj[key];
+    }
+  }
+  return clean;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -140,11 +162,13 @@ interface AuthContextType {
   switchPerspective: (role: UserRole) => void;
   resetPerspective: () => void;
   updateOperatorProfile: (updater: Partial<OperatorProfile>) => Promise<void>;
+  updateUserPassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserProfileDetails: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   offlineGuestLogin: (name?: string, role?: UserRole, region?: string, depot?: string) => void;
-  createOrUpdateUser: (userData: Partial<UserProfile> & { email: string; displayName: string }) => Promise<{ success: boolean; error?: string }>;
+  createOrUpdateUser: (userData: Partial<UserProfile> & { email: string; displayName: string; temporaryPassword?: string }) => Promise<{ success: boolean; error?: string; uid?: string; temporaryPassword?: string }>;
   deleteUserRecord: (uid: string) => Promise<{ success: boolean; error?: string }>;
   promoteUserRole: (uid: string, newRole: UserRole, newRegion?: string, newDepot?: string) => Promise<{ success: boolean; error?: string }>;
   updateUserStatus: (uid: string, status: 'active' | 'suspended' | 'terminated', notes?: string) => Promise<{ success: boolean; error?: string }>;
@@ -286,7 +310,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       let savedCount = 0;
       for (const u of usersList) {
-        await setDoc(doc(db, 'users', u.uid), u, { merge: true });
+        const cleanUser = sanitizeForFirestore(u);
+        await setDoc(doc(db, 'users', u.uid), cleanUser, { merge: true });
         savedCount++;
       }
       return { count: savedCount };
@@ -443,29 +468,156 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  const createOrUpdateUser = async (userData: Partial<UserProfile> & { email: string; displayName: string }) => {
+  const updateUserPassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters.' };
+    }
+
+    if (isFirebaseConfigured && auth && auth.currentUser) {
+      try {
+        await updatePassword(auth.currentUser, newPassword);
+        if (db) {
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+            mustChangePassword: false,
+            tempPassword: '',
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (err: any) {
+        console.error('Password update error:', err);
+        if (err.code === 'auth/requires-recent-login') {
+          return { success: false, error: 'For security, please sign out and sign in again before changing your password.' };
+        }
+        return { success: false, error: err.message || 'Could not update password.' };
+      }
+    }
+
+    // Update local profile state
+    setOperatorProfile((prev) => {
+      const updated: OperatorProfile = { 
+        ...prev, 
+        mustChangePassword: false, 
+        tempPassword: '',
+        updatedAt: new Date().toISOString()
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(updated));
+      }
+      return updated;
+    });
+
+    return { success: true };
+  };
+
+  const updateUserProfileDetails = async (updates: Partial<UserProfile>): Promise<{ success: boolean; error?: string }> => {
+    const updatedProfile: OperatorProfile = {
+      ...operatorProfile,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    setOperatorProfile(updatedProfile);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(updatedProfile));
+    }
+
+    // Update in usersList cache
+    setUsersList((prev) => {
+      const list = prev.map((u) => (u.uid === updatedProfile.uid || u.email === updatedProfile.email ? { ...u, ...updates } : u));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(list));
+      }
+      return list;
+    });
+
+    // Update Firebase Auth user profile (display name and photoURL) if logged in
+    if (isFirebaseConfigured && auth && auth.currentUser) {
+      try {
+        await firebaseUpdateProfile(auth.currentUser, {
+          displayName: updates.displayName || operatorProfile.displayName,
+          photoURL: updates.avatarUrl || operatorProfile.avatarUrl || undefined
+        });
+      } catch (err) {
+        console.warn('Could not update Firebase Auth profile metadata:', err);
+      }
+    }
+
+    // Update Firestore user document
+    if (isFirebaseConfigured && db) {
+      try {
+        const targetUid = operatorProfile.uid;
+        await setDoc(doc(db, 'users', targetUid), {
+          ...updates,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err: any) {
+        console.warn('Could not sync profile to Firestore:', err);
+        return { success: false, error: err.message || 'Failed saving profile to database.' };
+      }
+    }
+
+    return { success: true };
+  };
+
+  const createOrUpdateUser = async (
+    userData: Partial<UserProfile> & { email: string; displayName: string; temporaryPassword?: string }
+  ): Promise<{ success: boolean; error?: string; uid?: string; temporaryPassword?: string }> => {
     const targetRole = userData.role || 'assessor';
     if (!canManageRole(targetRole)) {
       return { success: false, error: 'Permission denied: Your role (' + operatorProfile.role + ') cannot manage ' + targetRole + ' users.' };
     }
 
-    const uid = userData.uid || ('user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
+    let finalUid = userData.uid;
+    const isNewUser = !finalUid;
+    const tempPass = userData.temporaryPassword || (isNewUser ? 'Stagecoach#' + Math.floor(1000 + Math.random() * 9000) : undefined);
+
+    // If creating a brand new user, create Firebase Auth account
+    if (isNewUser) {
+      if (isFirebaseConfigured && tempPass) {
+        const authRes = await createFirebaseUserAccount(
+          userData.email.trim().toLowerCase(),
+          tempPass,
+          userData.displayName.trim()
+        );
+
+        if (authRes.uid) {
+          finalUid = authRes.uid;
+        } else if (authRes.error) {
+          // If error is email already in use, we still permit updating/linking
+          console.warn('Firebase Auth creation notice:', authRes.error);
+          if (!authRes.error.includes('auth/email-already-in-use')) {
+            return { success: false, error: authRes.error };
+          }
+          finalUid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        }
+      } else {
+        finalUid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      }
+    }
+
     const newRecord: UserProfile = {
-      uid,
+      uid: finalUid || ('user_' + Date.now()),
       email: userData.email.trim().toLowerCase(),
       displayName: userData.displayName.trim(),
       role: targetRole,
-      region: userData.region || operatorProfile.region || 'Stagecoach Network',
-      depot: userData.depot || operatorProfile.depot || 'Main Depot',
+      region: userData.region || operatorProfile.region || 'All Regions',
+      depot: userData.depot || operatorProfile.depot || 'All Depots',
       phone: userData.phone || '',
       assessorNumber: userData.assessorNumber || ('SC-RRA-' + Math.floor(100 + Math.random() * 900)),
+      avatarUrl: userData.avatarUrl || '',
+      jobTitle: userData.jobTitle || '',
+      emergencyContactName: userData.emergencyContactName || '',
+      emergencyContactPhone: userData.emergencyContactPhone || '',
+      tempPassword: tempPass || userData.tempPassword || '',
+      mustChangePassword: userData.mustChangePassword !== undefined ? userData.mustChangePassword : isNewUser,
       status: userData.status || 'active',
-      createdAt: userData.createdAt || new Date().toISOString()
+      createdAt: userData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     // Update local list state
     setUsersList((prev) => {
-      const existingIdx = prev.findIndex((u) => u.uid === uid || u.email === newRecord.email);
+      const existingIdx = prev.findIndex((u) => u.uid === newRecord.uid || u.email === newRecord.email);
       let updated;
       if (existingIdx >= 0) {
         updated = [...prev];
@@ -482,14 +634,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Save to Firestore 'users' collection
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'users', uid), newRecord, { merge: true });
+        const cleanRecord = sanitizeForFirestore(newRecord);
+        await setDoc(doc(db, 'users', newRecord.uid), cleanRecord, { merge: true });
       } catch (err: any) {
         console.error('Firestore user save error:', err);
-        return { success: false, error: err.message || 'Could not save user in database.' };
+        return { 
+          success: false, 
+          error: err.message || 'Could not save user in database.',
+          uid: newRecord.uid,
+          temporaryPassword: tempPass
+        };
       }
     }
 
-    return { success: true };
+    return { 
+      success: true, 
+      uid: newRecord.uid, 
+      temporaryPassword: tempPass 
+    };
   };
 
   const deleteUserRecord = async (uid: string) => {
@@ -673,6 +835,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchPerspective,
         resetPerspective,
         updateOperatorProfile,
+        updateUserPassword,
+        updateUserProfileDetails,
         signIn,
         signOut,
         resetPassword,
