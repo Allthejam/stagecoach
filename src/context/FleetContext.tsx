@@ -56,17 +56,18 @@ interface FleetContextType {
 const FleetContext = createContext<FleetContextType | undefined>(undefined);
 
 export function FleetProvider({ children }: { children: ReactNode }) {
-  const [buses, setBuses] = useState<BusVehicle[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(FLEET_STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
+  const [buses, setBuses] = useState<BusVehicle[]>([]);
   const [loadingFleet, setLoadingFleet] = useState(false);
+
+  // Load cached fleet on client mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(FLEET_STORAGE_KEY);
+      if (saved) setBuses(JSON.parse(saved));
+    } catch (e) {
+      console.warn('Could not read fleet cache:', e);
+    }
+  }, []);
 
   const refreshFleet = async () => {
     if (!isFirebaseConfigured || !db) return;

@@ -27,8 +27,13 @@ export default function EnterpriseNavbar() {
   const pathname = usePathname();
   const { operatorProfile, signOut, isAuthenticated } = useAuthContext();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isAuthenticated) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isAuthenticated) return null;
 
   const roleInfo = ROLE_LABELS[operatorProfile.role] || ROLE_LABELS.assessor;
 

@@ -38,8 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-100 flex flex-col antialiased">
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-slate-100 flex flex-col antialiased" suppressHydrationWarning>
         <AuthProvider>
           <FleetProvider>
             <RouteProvider>

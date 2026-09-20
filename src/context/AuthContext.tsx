@@ -85,7 +85,7 @@ const DEFAULT_PROFILE: OperatorProfile = {
   phone: '+44 (0) 141 555 0199',
   assessorNumber: 'SC-HQ-001',
   status: 'active',
-  createdAt: new Date().toISOString(),
+  createdAt: '2026-01-01T00:00:00.000Z',
   emergencyContacts: {
     controlRoomPhone: '0800 555 999',
     depotManager: 'Operations Duty Manager',
@@ -98,6 +98,21 @@ const DEFAULT_PROFILE: OperatorProfile = {
     minTurningRadiusM: 12.5
   }
 };
+
+const DEFAULT_USERS_LIST: UserProfile[] = [
+  {
+    uid: 'master-01',
+    displayName: 'Master Administrator',
+    email: 'allan@stagecoach.co.uk',
+    role: 'master_admin',
+    region: 'All Regions',
+    depot: 'All Depots',
+    phone: '+44 (0) 141 555 0100',
+    assessorNumber: 'SC-MASTER-01',
+    status: 'active',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
 
 const PROFILE_STORAGE_KEY = 'stagecoach_rra_operator_profile_v2';
 const USERS_CACHE_KEY = 'stagecoach_rra_users_cache_v2';
@@ -131,51 +146,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isGuestSession, setIsGuestSession] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem(SESSION_KEY) === 'true';
-      } catch (e) {}
-    }
-    return false;
-  });
+  const [isGuestSession, setIsGuestSession] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSideDrawerOpen, setIsSideDrawerOpen] = useState(false);
   const [activeDrawerTab, setActiveDrawerTab] = useState<'profile' | 'users' | 'contacts' | 'fleet' | 'sync' | 'security'>('profile');
+  const [operatorProfile, setOperatorProfile] = useState<OperatorProfile>(DEFAULT_PROFILE);
+  const [usersList, setUsersList] = useState<UserProfile[]>(DEFAULT_USERS_LIST);
 
-  
-  const [operatorProfile, setOperatorProfile] = useState<OperatorProfile>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(PROFILE_STORAGE_KEY);
-        if (saved) return { ...DEFAULT_PROFILE, ...JSON.parse(saved) };
-      } catch (e) {}
-    }
-    return DEFAULT_PROFILE;
-  });
+  // Load client cached values after mount to eliminate SSR hydration mismatch
+  useEffect(() => {
+    try {
+      const savedSession = localStorage.getItem(SESSION_KEY) === 'true';
+      if (savedSession) setIsGuestSession(true);
 
-  const [usersList, setUsersList] = useState<UserProfile[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(USERS_CACHE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      {
-        uid: 'master-01',
-        displayName: 'Master Administrator',
-        email: 'allan@stagecoach.co.uk',
-        role: 'master_admin',
-        region: 'All Regions',
-        depot: 'All Depots',
-        phone: '+44 (0) 141 555 0100',
-        assessorNumber: 'SC-MASTER-01',
-        status: 'active',
-        createdAt: new Date().toISOString()
+      const savedProfile = localStorage.getItem(PROFILE_STORAGE_KEY);
+      if (savedProfile) {
+        setOperatorProfile((prev) => ({ ...prev, ...JSON.parse(savedProfile) }));
       }
-    ];
-  });
+
+      const savedUsers = localStorage.getItem(USERS_CACHE_KEY);
+      if (savedUsers) {
+        setUsersList(JSON.parse(savedUsers));
+      }
+    } catch (e) {
+      console.warn('Could not read local storage during hydration:', e);
+    }
+  }, []);
 
   const refreshUsersList = async () => {
     if (!isFirebaseConfigured || !db) return;

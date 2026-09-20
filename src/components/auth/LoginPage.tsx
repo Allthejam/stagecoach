@@ -371,7 +371,7 @@ export default function LoginPage() {
 
       {/* Footer */}
       <footer className="w-full max-w-7xl mx-auto px-6 py-4 border-t border-slate-900 text-center sm:flex sm:justify-between text-xs text-slate-500 relative z-10">
-        <p>© {new Date().getFullYear()} Stagecoach Group plc. Safety First Governance System.</p>
+        <p suppressHydrationWarning>© {new Date().getFullYear()} Stagecoach Group plc. Safety First Governance System.</p>
         <p className="mt-1 sm:mt-0">Encrypted UK Transit Safety Network</p>
       </footer>
     </div>
