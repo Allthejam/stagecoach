@@ -20,7 +20,6 @@ import {
   Compass,
   FileCheck2
 } from 'lucide-react';
-import { STAGECOACH_UK_REGIONS } from '@/types/route';
 
 // Dynamically import LeafletMap with SSR disabled
 const LeafletMap = dynamic(() => import('@/components/map/LeafletMap'), {
@@ -63,8 +62,8 @@ export default function HomePage() {
     createNewRoute(
       initNumber.trim(), 
       initTitle.trim(), 
-      initRegion.trim() || 'Stagecoach UK', 
-      initDepot.trim() || 'Depot',
+      initRegion.trim() || 'Region 1', 
+      initDepot.trim() || 'Main Depot',
       initAssessor.trim() || undefined
     );
     setInitNumber('');
@@ -86,7 +85,7 @@ export default function HomePage() {
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-slate-900">No Routes Found for Current Filter</h2>
             <p className="text-sm text-slate-600 max-w-md mx-auto">
-              No route assessments match <strong className="text-slate-800">{selectedRegionFilter || 'All Regions'}</strong> and garage <strong className="text-slate-800">{selectedGarageFilter || 'All Garages'}</strong>.
+              No route assessments match region <strong className="text-slate-800">{selectedRegionFilter || 'All'}</strong> and garage <strong className="text-slate-800">{selectedGarageFilter || 'All'}</strong>.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -101,7 +100,7 @@ export default function HomePage() {
             </button>
             <button
               onClick={() => {
-                setInitRegion(selectedRegionFilter || 'Stagecoach UK');
+                setInitRegion(selectedRegionFilter || '');
                 setInitDepot(selectedGarageFilter || '');
                 setIsOnboardingModalOpen(true);
               }}
@@ -124,7 +123,7 @@ export default function HomePage() {
           <div className="max-w-2xl relative z-10 space-y-4">
             <div className="inline-flex items-center space-x-2 bg-stagecoach-amber/20 border border-stagecoach-amber/40 px-3 py-1 rounded-full text-xs font-bold text-stagecoach-amber">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Clean Slate Database Ready</span>
+              <span>Clean Database Ready</span>
             </div>
             
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
@@ -132,14 +131,14 @@ export default function HomePage() {
             </h1>
             
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine across all UK operating companies and depots. Type your region and garage to begin.
+              Standardised digital safety dossier, GPS coordinate surveying, 5×5 HSE risk scoring, and fleet clearance engine. Type any Operating Region and Depot below to start building your network.
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
               <button
                 onClick={() => {
-                  setInitRegion('Stagecoach Highlands');
-                  setInitDepot('Aviemore');
+                  setInitRegion('');
+                  setInitDepot('');
                   setIsOnboardingModalOpen(true);
                 }}
                 className="px-6 py-3.5 bg-stagecoach-amber hover:bg-amber-500 text-slate-950 font-black text-sm rounded-xl shadow-lg hover:shadow-xl transition flex items-center space-x-2 cursor-pointer"
@@ -165,9 +164,9 @@ export default function HomePage() {
             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-stagecoach-blue">
               <Compass className="w-5 h-5" />
             </div>
-            <h3 className="font-bold text-slate-900 text-base">Custom Regions & Depots</h3>
+            <h3 className="font-bold text-slate-900 text-base">100% Database-Driven Filters</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Full flexibility to type any Operating Region and Garage anywhere in the UK, with instant smart suggestions.
+              The Region and Depot dropdowns in the header populate dynamically from the routes you create in your database.
             </p>
           </div>
 
@@ -187,7 +186,7 @@ export default function HomePage() {
             </div>
             <h3 className="font-bold text-slate-900 text-base">Driver Briefings & Sign-off</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Interactive route safety flashcards, double-decker/coach fleet clearance verifications, and digital assessor/manager signatures.
+              Interactive route safety flashcards, double-decker/coach fleet clearance verifications, and digital signatures.
             </p>
           </div>
         </div>
@@ -202,7 +201,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Create Route Assessment</h3>
-                  <p className="text-xs text-slate-500">Type any custom Region & Depot or choose from suggestions</p>
+                  <p className="text-xs text-slate-500">Type your Operating Region & Depot to add them to your database</p>
                 </div>
               </div>
 
@@ -210,7 +209,9 @@ export default function HomePage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-slate-700">Operating Region *</label>
-                    <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                    {availableRegionsForFilter.length > 0 && (
+                      <span className="text-[10px] text-slate-400">Pick existing ({availableRegionsForFilter.length}) or type new</span>
+                    )}
                   </div>
                   <input
                     type="text"
@@ -221,17 +222,21 @@ export default function HomePage() {
                     onChange={(e) => setInitRegion(e.target.value)}
                     className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
                   />
-                  <datalist id="landing-modal-regions">
-                    {availableRegionsForFilter.map((reg) => (
-                      <option key={reg} value={reg} />
-                    ))}
-                  </datalist>
+                  {availableRegionsForFilter.length > 0 && (
+                    <datalist id="landing-modal-regions">
+                      {availableRegionsForFilter.map((reg) => (
+                        <option key={reg} value={reg} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-slate-700">Operating Garage / Depot *</label>
-                    <span className="text-[10px] text-slate-400">Type or select suggestion</span>
+                    {availableGaragesForFilter.length > 0 && (
+                      <span className="text-[10px] text-slate-400">Pick existing ({availableGaragesForFilter.length}) or type new</span>
+                    )}
                   </div>
                   <input
                     type="text"
@@ -242,11 +247,13 @@ export default function HomePage() {
                     onChange={(e) => setInitDepot(e.target.value)}
                     className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stagecoach-blue bg-white font-medium"
                   />
-                  <datalist id="landing-modal-depots">
-                    {availableGaragesForFilter.map((garage) => (
-                      <option key={garage} value={garage} />
-                    ))}
-                  </datalist>
+                  {availableGaragesForFilter.length > 0 && (
+                    <datalist id="landing-modal-depots">
+                      {availableGaragesForFilter.map((garage) => (
+                        <option key={garage} value={garage} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { RouteAssessment, GisToolMode, HazardObservation, RouteStop, StopType, STAGECOACH_UK_REGIONS } from '@/types/route';
+import { RouteAssessment, GisToolMode, HazardObservation, RouteStop, StopType } from '@/types/route';
 import { initialMockRoutes } from '@/lib/mockData';
 import { 
   getAllRoutes, 
@@ -34,7 +34,7 @@ interface RouteContextType {
   setGisToolMode: (mode: GisToolMode) => void;
   selectRoute: (id: string) => void;
   
-  // 3-Tier Cascading Filter State
+  // Dynamic Cascading Filters built strictly from database routes
   selectedRegionFilter: string;
   setSelectedRegionFilter: (region: string) => void;
   selectedGarageFilter: string;
@@ -143,32 +143,30 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     load();
   }, []);
 
-  // Compute dynamic list of all available regions (from routes + presets)
+  // 100% DYNAMIC: Regions derived ONLY from routes saved in the database
   const availableRegionsForFilter = useMemo(() => {
-    const routeRegions = routes.map(r => r.region || r.operatingCompany).filter(Boolean);
-    const presetRegions = STAGECOACH_UK_REGIONS.map(r => r.regionName);
-    const combined = Array.from(new Set([...routeRegions, ...presetRegions]));
-    return combined.sort((a, b) => a.localeCompare(b));
+    const routeRegions = routes
+      .map(r => r.region || r.operatingCompany)
+      .filter((reg): reg is string => Boolean(reg && reg.trim()));
+    return Array.from(new Set(routeRegions)).sort((a, b) => a.localeCompare(b));
   }, [routes]);
 
-  // Compute available garages for currently selected region
+  // 100% DYNAMIC: Garages derived ONLY from routes saved in the database
   const availableGaragesForFilter = useMemo(() => {
     if (!selectedRegionFilter) {
-      const routeGarages = routes.map(r => r.depot).filter(Boolean);
-      const presetGarages = STAGECOACH_UK_REGIONS.flatMap(r => r.garages);
-      return Array.from(new Set([...routeGarages, ...presetGarages])).sort((a, b) => a.localeCompare(b));
+      const routeGarages = routes
+        .map(r => r.depot)
+        .filter((dep): dep is string => Boolean(dep && dep.trim()));
+      return Array.from(new Set(routeGarages)).sort((a, b) => a.localeCompare(b));
     }
     
-    // Garages for selected region
+    // If a region is selected, list only garages from routes belonging to that region
     const routeGarages = routes
-      .filter(r => (r.region || r.operatingCompany)?.toLowerCase() === selectedRegionFilter.toLowerCase())
+      .filter(r => (r.region || r.operatingCompany)?.toLowerCase().trim() === selectedRegionFilter.toLowerCase().trim())
       .map(r => r.depot)
-      .filter(Boolean);
+      .filter((dep): dep is string => Boolean(dep && dep.trim()));
     
-    const presetObj = STAGECOACH_UK_REGIONS.find(r => r.regionName.toLowerCase() === selectedRegionFilter.toLowerCase());
-    const presetGarages = presetObj ? presetObj.garages : [];
-    
-    return Array.from(new Set([...routeGarages, ...presetGarages])).sort((a, b) => a.localeCompare(b));
+    return Array.from(new Set(routeGarages)).sort((a, b) => a.localeCompare(b));
   }, [routes, selectedRegionFilter]);
 
   // Handle region filter change with auto garage validation
@@ -177,13 +175,12 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     if (!region) {
       setSelectedGarageFilterState('');
     } else {
-      // If the current garage is not valid for this new region, reset it
-      const validForRegion = routes
-        .filter(r => (r.region || r.operatingCompany)?.toLowerCase() === region.toLowerCase())
-        .map(r => r.depot?.toLowerCase())
-        .concat((STAGECOACH_UK_REGIONS.find(r => r.regionName.toLowerCase() === region.toLowerCase())?.garages || []).map(g => g.toLowerCase()));
+      // Check if current garage exists in the newly selected region's routes
+      const validGaragesForRegion = routes
+        .filter(r => (r.region || r.operatingCompany)?.toLowerCase().trim() === region.toLowerCase().trim())
+        .map(r => r.depot?.toLowerCase().trim());
       
-      if (selectedGarageFilter && !validForRegion.includes(selectedGarageFilter.toLowerCase())) {
+      if (selectedGarageFilter && !validGaragesForRegion.includes(selectedGarageFilter.toLowerCase().trim())) {
         setSelectedGarageFilterState('');
       }
     }
@@ -196,11 +193,11 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   // Filter routes based on 3-tier cascading selections
   const filteredRoutes = useMemo(() => {
     return routes.filter(r => {
-      const rRegion = (r.region || r.operatingCompany || '').toLowerCase();
-      const rDepot = (r.depot || '').toLowerCase();
+      const rRegion = (r.region || r.operatingCompany || '').toLowerCase().trim();
+      const rDepot = (r.depot || '').toLowerCase().trim();
       
-      const matchRegion = !selectedRegionFilter || rRegion === selectedRegionFilter.toLowerCase();
-      const matchGarage = !selectedGarageFilter || rDepot === selectedGarageFilter.toLowerCase() || rDepot.includes(selectedGarageFilter.toLowerCase());
+      const matchRegion = !selectedRegionFilter || rRegion === selectedRegionFilter.toLowerCase().trim();
+      const matchGarage = !selectedGarageFilter || rDepot === selectedGarageFilter.toLowerCase().trim();
       
       return matchRegion && matchGarage;
     });
@@ -277,8 +274,8 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     depot: string, 
     assessorName?: string
   ) => {
-    const customRegion = region?.trim() || 'Stagecoach Highlands';
-    const customDepot = depot?.trim() || 'Aviemore Depot';
+    const customRegion = region?.trim() || 'Stagecoach';
+    const customDepot = depot?.trim() || 'Depot';
     const assessor = assessorName?.trim() || 'Field Route Assessor';
 
     const newRoute: RouteAssessment = {
@@ -318,17 +315,13 @@ export function RouteProvider({ children }: { children: ReactNode }) {
 
     setRoutes((prev) => [newRoute, ...prev]);
     
-    // Update active filters so the new route is immediately visible and selected
-    if (selectedRegionFilter && selectedRegionFilter.toLowerCase() !== customRegion.toLowerCase()) {
-      setSelectedRegionFilterState(customRegion);
-    }
-    if (selectedGarageFilter && selectedGarageFilter.toLowerCase() !== customDepot.toLowerCase()) {
-      setSelectedGarageFilterState(customDepot);
-    }
+    // Automatically set active filters to the new route's region and depot
+    setSelectedRegionFilterState(customRegion);
+    setSelectedGarageFilterState(customDepot);
     
     setCurrentRouteId(newRoute.id);
     saveRoute(newRoute);
-    showToast(`Created Route ${newRoute.routeNumber} (${customRegion} - ${customDepot})`);
+    showToast(`Created Route ${newRoute.routeNumber} in ${customRegion} (${customDepot})`);
   };
 
   const deleteCurrentRoute = async () => {
@@ -353,7 +346,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     setCurrentRouteId('');
     setSelectedRegionFilterState('');
     setSelectedGarageFilterState('');
-    showToast('Cleared all routes - Clean slate ready for custom testing');
+    showToast('Cleared all routes - Database is empty and ready');
   };
 
   const loadSampleTemplateRoutes = async () => {
