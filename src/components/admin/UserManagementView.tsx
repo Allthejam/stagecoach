@@ -160,6 +160,82 @@ export default function UserManagementView() {
         )}
       </div>
 
+      {/* Visual Chain of Command Hierarchy */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Tier 1: Master Admin (CEO) */}
+        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              Tier 1 • CEO / HQ
+            </span>
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+          </div>
+          <h3 className="text-sm font-black text-white">Master Admin</h3>
+          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            National authority. Appoints Regional Admins across UK OpCos, governs 5x5 standards and safety compliance.
+          </p>
+          <div className="mt-3 pt-2 border-t border-slate-800 text-[10px] text-amber-400/90 font-semibold flex items-center justify-between">
+            <span>Scope: All UK OpCos</span>
+            <span>{usersList.filter((u) => u.role === 'master_admin').length} Users</span>
+          </div>
+        </div>
+
+        {/* Tier 2: Regional Admin */}
+        <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-4 shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
+              Tier 2 • Regional Exec
+            </span>
+            <Building2 className="w-4 h-4 text-blue-400" />
+          </div>
+          <h3 className="text-sm font-black text-white">Regional Admin</h3>
+          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            Directs Operating Companies (e.g. Highlands, Manchester). Appoints Depot Managers & assigns regional fleet budgets.
+          </p>
+          <div className="mt-3 pt-2 border-t border-slate-800 text-[10px] text-blue-400/90 font-semibold flex items-center justify-between">
+            <span>Scope: Designated Region</span>
+            <span>{usersList.filter((u) => u.role === 'regional_admin').length} Users</span>
+          </div>
+        </div>
+
+        {/* Tier 3: Depot Admin */}
+        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              Tier 3 • Garage Ops
+            </span>
+            <Warehouse className="w-4 h-4 text-emerald-400" />
+          </div>
+          <h3 className="text-sm font-black text-white">Depot Admin</h3>
+          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            Garage Operations Manager. Manages depot bus allocations, dimensions, and delegates route surveys to Assessors.
+          </p>
+          <div className="mt-3 pt-2 border-t border-slate-800 text-[10px] text-emerald-400/90 font-semibold flex items-center justify-between">
+            <span>Scope: Local Garage</span>
+            <span>{usersList.filter((u) => u.role === 'depot_admin').length} Users</span>
+          </div>
+        </div>
+
+        {/* Tier 4: RRA Assessor */}
+        <div className="bg-slate-900 border border-purple-500/30 rounded-2xl p-4 shadow-md relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
+              Tier 4 • Field Surveyor
+            </span>
+            <BadgeCheck className="w-4 h-4 text-purple-400" />
+          </div>
+          <h3 className="text-sm font-black text-white">RRA Assessor</h3>
+          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            Field Safety Auditor. Carries out live on-bus GPS tracing, hazard identification, bridge clearances, and Flashcards.
+          </p>
+          <div className="mt-3 pt-2 border-t border-slate-800 text-[10px] text-purple-400/90 font-semibold flex items-center justify-between">
+            <span>Scope: Field Route Audits</span>
+            <span>{usersList.filter((u) => u.role === 'assessor').length} Users</span>
+          </div>
+        </div>
+      </div>
+
       {/* Search & Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}

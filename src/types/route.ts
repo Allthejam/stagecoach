@@ -93,6 +93,13 @@ export interface RouteAssessment {
   stops: RouteStop[];
   hazards: HazardObservation[];
   
+  // Assignment & Chain of Command Delegation
+  assignedToAssessorId?: string;
+  assignedAssessorName?: string;
+  assignedByDepotAdmin?: string;
+  targetCompletionDate?: string;
+  assignmentNotes?: string;
+  
   // Fleet & Governance
   vehicleRestrictions: VehicleRestrictions;
   governance: GovernanceSignOff;

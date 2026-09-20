@@ -11,7 +11,7 @@ import {
 } from '@/lib/firestore';
 import { calculateTotalRouteDistanceKm, calculateEstimatedRunningTime } from '@/lib/calculations';
 
-export type ActiveTab = 'map' | 'hazards' | 'fleet' | 'driver' | 'governance';
+export type ActiveTab = 'map' | 'hazards' | 'fleet' | 'driver' | 'governance' | 'assignments';
 
 export interface ConfirmModalState {
   isOpen: boolean;
@@ -86,6 +86,7 @@ interface RouteContextType {
   reversePath: () => void;
   clearPath: () => void;
   startOver: () => void;
+  assignRouteToAssessor: (routeId: string, assessorId: string, assessorName: string, targetDate?: string, notes?: string) => Promise<void>;
 }
 
 const RouteContext = createContext<RouteContextType | undefined>(undefined);
@@ -409,6 +410,36 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const assignRouteToAssessor = async (
+    routeId: string, 
+    assessorId: string, 
+    assessorName: string, 
+    targetDate?: string, 
+    notes?: string
+  ) => {
+    setRoutes((prev) => {
+      const updated = prev.map((r) => {
+        if (r.id === routeId) {
+          const mod: RouteAssessment = {
+            ...r,
+            assessorName: assessorName,
+            assignedToAssessorId: assessorId,
+            assignedAssessorName: assessorName,
+            targetCompletionDate: targetDate,
+            assignmentNotes: notes,
+            status: r.status === 'Draft' ? 'Requires Review' : r.status,
+            updatedAt: new Date().toISOString()
+          };
+          saveRoute(mod);
+          return mod;
+        }
+        return r;
+      });
+      return updated;
+    });
+    showToast(`Assigned Route to ${assessorName}`);
+  };
+
   return (
     <RouteContext.Provider
       value={{
@@ -460,6 +491,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         reversePath,
         clearPath,
         startOver,
+        assignRouteToAssessor,
       }}
     >
       {children}

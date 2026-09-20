@@ -9,6 +9,7 @@ import HazardRegister from '@/components/hazards/HazardRegister';
 import FleetCompatibility from '@/components/fleet/FleetCompatibility';
 import DriverFlashcard from '@/components/driver/DriverFlashcard';
 import GovernanceSignOff from '@/components/governance/GovernanceSignOff';
+import RouteAssignmentManager from '@/components/routes/RouteAssignmentManager';
 import { 
   Bus, 
   MapPin, 
@@ -20,7 +21,8 @@ import {
   Printer,
   Trash2,
   Building2,
-  Warehouse
+  Warehouse,
+  ClipboardList
 } from 'lucide-react';
 
 const LeafletMap = dynamic(() => import('@/components/map/LeafletMap'), {
@@ -93,6 +95,7 @@ export default function RoutesPage() {
 
   const navItems: { id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
     { id: 'map', label: 'GIS & Route Map', icon: MapPin },
+    { id: 'assignments', label: 'Assessor Delegation', icon: ClipboardList },
     { id: 'hazards', label: 'Hazard Register', icon: AlertTriangle, count: currentRoute?.hazards.length || 0 },
     { id: 'fleet', label: 'Fleet Clearance', icon: Bus },
     { id: 'driver', label: 'Driver Flashcard', icon: FileText },
@@ -271,6 +274,11 @@ export default function RoutesPage() {
         ) : (
           <div className="w-full h-full pb-12">
             {activeTab === 'map' && <LeafletMap />}
+            {activeTab === 'assignments' && (
+              <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
+                <RouteAssignmentManager />
+              </div>
+            )}
             {activeTab === 'hazards' && (
               <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
                 <HazardRegister />

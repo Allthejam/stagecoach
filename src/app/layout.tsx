@@ -3,7 +3,7 @@ import './globals.css';
 import { RouteProvider } from '@/context/RouteContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { FleetProvider } from '@/context/FleetContext';
-import EnterpriseNavbar from '@/components/navigation/EnterpriseNavbar';
+import EnterpriseSidebar from '@/components/navigation/EnterpriseSidebar';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import Toast from '@/components/common/Toast';
 import LoginModal from '@/components/auth/LoginModal';
@@ -39,12 +39,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-slate-100 flex flex-col antialiased" suppressHydrationWarning>
+      <body className="min-h-screen bg-slate-100 flex flex-col antialiased text-slate-900" suppressHydrationWarning>
         <AuthProvider>
           <FleetProvider>
             <RouteProvider>
-              <EnterpriseNavbar />
-              <main className="flex-1 w-full relative">
+              <EnterpriseSidebar />
+              <main className="flex-1 w-full relative md:pl-64 min-h-screen flex flex-col transition-all">
                 {children}
               </main>
               <LoginModal />
