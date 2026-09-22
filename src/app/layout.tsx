@@ -10,6 +10,7 @@ import Toast from '@/components/common/Toast';
 import LoginModal from '@/components/auth/LoginModal';
 import PwaInstallBanner from '@/components/pwa/PwaInstallBanner';
 import IosInstallModal from '@/components/pwa/IosInstallModal';
+import PermissionsPromptModal from '@/components/pwa/PermissionsPromptModal';
 
 export const metadata: Metadata = {
   title: 'Stagecoach Route Risk Assessment & National Operations Platform',
@@ -66,6 +67,7 @@ export default function RootLayout({
                 <Toast />
                 <PwaInstallBanner />
                 <IosInstallModal />
+                <PermissionsPromptModal />
               </PwaProvider>
             </RouteProvider>
           </FleetProvider>

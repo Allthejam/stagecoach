@@ -12,6 +12,7 @@ import AddHazardModal from './AddHazardModal';
 import LiveSurveyControlBar from './LiveSurveyControlBar';
 import SurveyPauseModal from './SurveyPauseModal';
 import SurveySummaryModal from './SurveySummaryModal';
+import { usePwa } from '@/context/PwaContext';
 import { 
   Maximize2, 
   Minimize2, 
@@ -27,7 +28,9 @@ import {
   Trash2, 
   RotateCcw,
   PenTool,
-  MousePointer
+  MousePointer,
+  Crosshair,
+  Locate
 } from 'lucide-react';
 
 let L: typeof import('leaflet') | null = null;
@@ -62,13 +65,17 @@ export default function LeafletMap() {
     recordGpsBreadcrumb,
   } = useRouteContext();
 
+  const { openPermissionsModal, requestGpsPermission, gpsPermission } = usePwa();
+
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const polylineLayerRef = useRef<L.Polyline | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const gpsMarkerRef = useRef<L.CircleMarker | null>(null);
+  const accuracyCircleRef = useRef<L.Circle | null>(null);
   const gpsWatchIdRef = useRef<number | null>(null);
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
   const wakeLockSentinelRef = useRef<any>(null);
@@ -346,14 +353,25 @@ export default function LeafletMap() {
 
   }, [currentRoute, setSelectedHazardForModal]);
 
-  const handleToggleGps = () => {
-    if (!navigator.geolocation) {
-      showToast('Geolocation is not supported by your browser.');
-      return;
+  const handleGpsError = (err: GeolocationPositionError) => {
+    let msg = 'Could not acquire GPS position.';
+    if (err.code === 1) { // PERMISSION_DENIED
+      msg = 'Location permission is blocked. Please allow Location access in your browser to enable live GPS surveying.';
+      openPermissionsModal();
+    } else if (err.code === 2) { // POSITION_UNAVAILABLE
+      msg = 'GPS signal unavailable. Please ensure Location Services are turned ON in your device settings.';
+    } else if (err.code === 3) { // TIMEOUT
+      msg = 'GPS fix timed out. Retrying with active cellular / Wi-Fi positioning...';
     }
+    showToast(msg);
+  };
 
-    if (isGpsTracking) {
-      if (gpsWatchIdRef.current !== null) {
+  // Reactive GPS tracking watcher: automatically starts/stops whenever isGpsTracking or surveyStatus changes
+  useEffect(() => {
+    const isLive = isGpsTracking || surveyStatus === 'recording' || surveyStatus === 'paused';
+
+    if (!isLive) {
+      if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.clearWatch(gpsWatchIdRef.current);
         gpsWatchIdRef.current = null;
       }
@@ -361,52 +379,187 @@ export default function LeafletMap() {
         mapInstanceRef.current.removeLayer(gpsMarkerRef.current);
         gpsMarkerRef.current = null;
       }
+      if (accuracyCircleRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(accuracyCircleRef.current);
+        accuracyCircleRef.current = null;
+      }
       releaseWakeLock();
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported in this browser environment.');
+      return;
+    }
+
+    requestWakeLock();
+    showToast('Acquiring live GPS fix (Screen Stay-Awake Active)...');
+
+    // Immediate single fix to quickly center on surveyor
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, speed, accuracy } = pos.coords;
+        const posCoord: [number, number] = [latitude, longitude];
+        recordGpsBreadcrumb(latitude, longitude, speed, accuracy);
+
+        if (mapInstanceRef.current && L) {
+          // Center and zoom to user's location on initial fix
+          mapInstanceRef.current.setView(posCoord, Math.max(mapInstanceRef.current.getZoom(), 16), { animate: true });
+
+          if (!accuracyCircleRef.current) {
+            accuracyCircleRef.current = L.circle(posCoord, {
+              radius: accuracy || 15,
+              color: '#0284c7',
+              weight: 1,
+              fillColor: '#0284c7',
+              fillOpacity: 0.15,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            accuracyCircleRef.current.setLatLng(posCoord);
+            accuracyCircleRef.current.setRadius(accuracy || 15);
+          }
+
+          if (!gpsMarkerRef.current) {
+            gpsMarkerRef.current = L.circleMarker(posCoord, {
+              radius: 9,
+              color: '#ffffff',
+              weight: 3,
+              fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
+              fillOpacity: 0.95,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            gpsMarkerRef.current.setLatLng(posCoord);
+          }
+        }
+        showToast(`GPS Position Fixed (±${Math.round(accuracy || 5)}m accuracy)`);
+      },
+      (err) => {
+        console.warn('Initial GPS fetch notice:', err);
+        handleGpsError(err);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+
+    // Continuous watchPosition
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, speed, accuracy } = pos.coords;
+        const posCoord: [number, number] = [latitude, longitude];
+        recordGpsBreadcrumb(latitude, longitude, speed, accuracy);
+
+        if (mapInstanceRef.current && L) {
+          if (!accuracyCircleRef.current) {
+            accuracyCircleRef.current = L.circle(posCoord, {
+              radius: accuracy || 15,
+              color: '#0284c7',
+              weight: 1,
+              fillColor: '#0284c7',
+              fillOpacity: 0.15,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            accuracyCircleRef.current.setLatLng(posCoord);
+            accuracyCircleRef.current.setRadius(accuracy || 15);
+          }
+
+          if (!gpsMarkerRef.current) {
+            gpsMarkerRef.current = L.circleMarker(posCoord, {
+              radius: 9,
+              color: '#ffffff',
+              weight: 3,
+              fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
+              fillOpacity: 0.95,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            gpsMarkerRef.current.setLatLng(posCoord);
+            gpsMarkerRef.current.setStyle({
+              fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
+            });
+          }
+        }
+      },
+      (err) => {
+        console.error('GPS Watch error:', err);
+        handleGpsError(err);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 15000,
+      }
+    );
+
+    gpsWatchIdRef.current = watchId;
+
+    return () => {
+      if (gpsWatchIdRef.current !== null && navigator && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
+    };
+  }, [isGpsTracking, surveyStatus]);
+
+  const handleToggleGps = () => {
+    if (isGpsTracking || surveyStatus !== 'idle') {
       setIsGpsTracking(false);
       setUserGpsPosition(null);
       showToast('GPS Survey Tracking stopped');
     } else {
       setIsGpsTracking(true);
-      requestWakeLock();
-      showToast('Acquiring GPS fix (Screen Stay-Awake Active)...');
-
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude, speed, accuracy } = pos.coords;
-          const posCoord: [number, number] = [latitude, longitude];
-          recordGpsBreadcrumb(latitude, longitude, speed, accuracy);
-
-          if (mapInstanceRef.current && L) {
-            if (!gpsMarkerRef.current) {
-              gpsMarkerRef.current = L.circleMarker(posCoord, {
-                radius: 8,
-                color: '#ffffff',
-                weight: 3,
-                fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
-                fillOpacity: 0.9,
-              }).addTo(mapInstanceRef.current);
-            } else {
-              gpsMarkerRef.current.setLatLng(posCoord);
-              gpsMarkerRef.current.setStyle({
-                fillColor: surveyStatus === 'paused' ? '#f59e0b' : surveyStatus === 'recording' ? '#10b981' : '#0284c7',
-              });
-            }
-          }
-        },
-        (err) => {
-          console.error(err);
-          showToast(`GPS Error: ${err.message}`);
-          releaseWakeLock();
-          setIsGpsTracking(false);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 2000,
-          timeout: 10000,
-        }
-      );
-      gpsWatchIdRef.current = watchId;
     }
+  };
+
+  const handleLocateMe = async () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLocating(true);
+    showToast('Locating your position...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        const posCoord: [number, number] = [latitude, longitude];
+        setUserGpsPosition(posCoord);
+
+        if (mapInstanceRef.current && L) {
+          mapInstanceRef.current.setView(posCoord, 16, { animate: true });
+
+          if (!gpsMarkerRef.current) {
+            gpsMarkerRef.current = L.circleMarker(posCoord, {
+              radius: 9,
+              color: '#ffffff',
+              weight: 3,
+              fillColor: '#0284c7',
+              fillOpacity: 0.95,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            gpsMarkerRef.current.setLatLng(posCoord);
+          }
+
+          if (!accuracyCircleRef.current) {
+            accuracyCircleRef.current = L.circle(posCoord, {
+              radius: accuracy || 15,
+              color: '#0284c7',
+              weight: 1,
+              fillColor: '#0284c7',
+              fillOpacity: 0.15,
+            }).addTo(mapInstanceRef.current);
+          } else {
+            accuracyCircleRef.current.setLatLng(posCoord);
+            accuracyCircleRef.current.setRadius(accuracy || 15);
+          }
+        }
+        showToast(`Located: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy || 5)}m)`);
+      },
+      (err) => {
+        setIsLocating(false);
+        handleGpsError(err);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const handleCenterMap = () => {
@@ -715,26 +868,40 @@ export default function LeafletMap() {
                 : 'bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
             }`}>
               
-              {/* Floating Fullscreen / Exit Fullscreen Button */}
-              <button
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className={`absolute z-30 bg-slate-900/90 hover:bg-slate-800 text-white px-3.5 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                  isFullscreen ? 'top-4 right-14' : 'top-5 left-5'
-                }`}
-                title={isFullscreen ? 'Exit Fullscreen' : 'Expand Map to Fullscreen'}
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize2 className="w-4 h-4 text-stagecoach-amber" />
-                    <span>Exit Fullscreen</span>
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
-                    <span>Fullscreen</span>
-                  </>
-                )}
-              </button>
+              {/* Floating Controls (Fullscreen & Locate Me) */}
+              <div className={`absolute z-30 flex items-center space-x-2 ${
+                isFullscreen ? 'top-4 right-14' : 'top-5 left-5'
+              }`}>
+                <button
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
+                  title={isFullscreen ? 'Exit Fullscreen' : 'Expand Map to Fullscreen'}
+                >
+                  {isFullscreen ? (
+                    <>
+                      <Minimize2 className="w-4 h-4 text-stagecoach-amber" />
+                      <span>Exit Fullscreen</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
+                      <span>Fullscreen</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleLocateMe}
+                  disabled={isLocating}
+                  className={`bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    isLocating ? 'opacity-75' : ''
+                  }`}
+                  title="Center map on your current GPS location"
+                >
+                  <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
+                  <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                </button>
+              </div>
 
               {/* Floating Toolbar inside Fullscreen */}
               {isFullscreen && (

@@ -11,6 +11,8 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+export type PermissionState = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
 interface PwaContextType {
   isInstallable: boolean;
   isInstalled: boolean;
@@ -24,6 +26,16 @@ interface PwaContextType {
   reloadApp: () => void;
   bannerDismissed: boolean;
   dismissBanner: () => void;
+
+  // Permissions Manager
+  gpsPermission: PermissionState;
+  notificationPermission: PermissionState;
+  isPermissionsModalOpen: boolean;
+  openPermissionsModal: () => void;
+  closePermissionsModal: () => void;
+  requestGpsPermission: () => Promise<{ success: boolean; lat?: number; lng?: number; error?: string }>;
+  requestNotificationPermission: () => Promise<{ success: boolean; status: PermissionState }>;
+  requestAllPermissions: () => Promise<{ gps: boolean; notifications: boolean }>;
 }
 
 const PwaContext = createContext<PwaContextType | undefined>(undefined);
@@ -38,6 +50,11 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
+  // Permission States
+  const [gpsPermission, setGpsPermission] = useState<PermissionState>('prompt');
+  const [notificationPermission, setNotificationPermission] = useState<PermissionState>('prompt');
+  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -49,6 +66,7 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         document.referrer.includes('android-app://');
       
       setIsInstalled(isStandaloneMode);
+      return isStandaloneMode;
     };
 
     checkStandalone();
@@ -112,10 +130,42 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+    // Permission checking
+    const checkPermissions = async () => {
+      // Check Geolocation
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        if ('permissions' in navigator && navigator.permissions.query) {
+          try {
+            const status = await navigator.permissions.query({ name: 'geolocation' as any });
+            setGpsPermission(status.state as PermissionState);
+            status.onchange = () => {
+              setGpsPermission(status.state as PermissionState);
+            };
+          } catch (e) {
+            // fallback
+          }
+        }
+      } else {
+        setGpsPermission('unsupported');
+      }
+
+      // Check Notification
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setNotificationPermission(Notification.permission as PermissionState);
+      } else {
+        setNotificationPermission('unsupported');
+      }
     };
+
+    checkPermissions();
+
+    // Auto prompt permissions if standalone PWA and not yet granted
+    const permissionsPrompted = localStorage.getItem('stagecoach_permissions_prompted');
+    if (checkStandalone() && !permissionsPrompted) {
+      setTimeout(() => {
+        setIsPermissionsModalOpen(true);
+      }, 1500);
+    }
   }, []);
 
   const openIosGuide = useCallback(() => {
@@ -125,6 +175,71 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
   const closeIosGuide = useCallback(() => {
     setIsIosGuideOpen(false);
   }, []);
+
+  const openPermissionsModal = useCallback(() => {
+    setIsPermissionsModalOpen(true);
+  }, []);
+
+  const closePermissionsModal = useCallback(() => {
+    setIsPermissionsModalOpen(false);
+    try {
+      localStorage.setItem('stagecoach_permissions_prompted', 'true');
+    } catch {}
+  }, []);
+
+  const requestGpsPermission = useCallback(async (): Promise<{ success: boolean; lat?: number; lng?: number; error?: string }> => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsPermission('unsupported');
+      return { success: false, error: 'Geolocation is not supported by your browser.' };
+    }
+
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setGpsPermission('granted');
+          resolve({ success: true, lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => {
+          console.warn('GPS permission error:', err);
+          if (err.code === 1) {
+            setGpsPermission('denied');
+            resolve({ success: false, error: 'Location permission was denied. Please allow location access in your browser or device settings.' });
+          } else if (err.code === 2) {
+            resolve({ success: false, error: 'GPS position unavailable. Please ensure Location Services are switched on.' });
+          } else {
+            resolve({ success: false, error: 'GPS request timed out. Please try again.' });
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }, []);
+
+  const requestNotificationPermission = useCallback(async (): Promise<{ success: boolean; status: PermissionState }> => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return { success: false, status: 'unsupported' };
+    }
+
+    try {
+      const result = await Notification.requestPermission();
+      const state = result as PermissionState;
+      setNotificationPermission(state);
+      return { success: state === 'granted', status: state };
+    } catch (err) {
+      console.warn('Notification permission error:', err);
+      return { success: false, status: 'denied' };
+    }
+  }, []);
+
+  const requestAllPermissions = useCallback(async (): Promise<{ gps: boolean; notifications: boolean }> => {
+    const gpsRes = await requestGpsPermission();
+    const notifRes = await requestNotificationPermission();
+    try {
+      localStorage.setItem('stagecoach_permissions_prompted', 'true');
+    } catch {}
+    return { gps: gpsRes.success, notifications: notifRes.success };
+  }, [requestGpsPermission, requestNotificationPermission]);
 
   const dismissBanner = useCallback(() => {
     setBannerDismissed(true);
@@ -140,6 +255,8 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         const choice = await deferredPrompt.userChoice;
         if (choice.outcome === 'accepted') {
           setIsInstalled(true);
+          // Open permissions modal on successful install
+          setIsPermissionsModalOpen(true);
         }
         setDeferredPrompt(null);
       } catch (err) {
@@ -178,6 +295,14 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         reloadApp,
         bannerDismissed,
         dismissBanner,
+        gpsPermission,
+        notificationPermission,
+        isPermissionsModalOpen,
+        openPermissionsModal,
+        closePermissionsModal,
+        requestGpsPermission,
+        requestNotificationPermission,
+        requestAllPermissions,
       }}
     >
       {children}

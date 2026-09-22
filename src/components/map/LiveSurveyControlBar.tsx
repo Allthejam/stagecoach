@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import React from 'react';
 import { useRouteContext } from '@/context/RouteContext';
+import { usePwa } from '@/context/PwaContext';
 import { formatDurationHMS } from '@/lib/calculations';
 import { 
   Play, 
@@ -15,7 +16,8 @@ import {
   Navigation, 
   Sparkles,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Locate
 } from 'lucide-react';
 
 export default function LiveSurveyControlBar() {
@@ -38,6 +40,23 @@ export default function LiveSurveyControlBar() {
     setIsAddHazardModalOpen,
     setPendingCoords
   } = useRouteContext();
+
+  const { gpsPermission, openPermissionsModal, requestGpsPermission } = usePwa();
+
+  const handleStartSurvey = async () => {
+    if (gpsPermission === 'denied') {
+      openPermissionsModal();
+      return;
+    }
+    if (gpsPermission === 'prompt') {
+      const granted = await requestGpsPermission();
+      if (!granted) {
+        openPermissionsModal();
+        return;
+      }
+    }
+    startLiveSurvey();
+  };
 
   const handlePinHazardAtGps = () => {
     if (userGpsPosition) {
@@ -69,7 +88,7 @@ export default function LiveSurveyControlBar() {
         </div>
 
         <button
-          onClick={startLiveSurvey}
+          onClick={handleStartSurvey}
           className="px-4 py-2.5 bg-stagecoach-amber hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center space-x-2 cursor-pointer"
         >
           <Play className="w-4 h-4 fill-slate-950" />
