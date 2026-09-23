@@ -1010,113 +1010,29 @@ export default function LeafletMap() {
                   : 'w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-slate-200 shadow-inner'
               }`}>
                 
-                {/* 1. FLOATING TOP-LEFT CONTROLS */}
+                {/* 1. TOP-LEFT HUD */}
                 {isFullscreen ? (
-                  /* Fullscreen Floating GIS Tools Dock */
-                  <div className="absolute top-4 left-4 z-[1000] flex flex-wrap items-center gap-1.5 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-700/80 max-w-[calc(100vw-32px)]">
-                    <button
-                      onClick={() => setGisToolMode('browse')}
-                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'browse' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Select & Inspect elements"
-                    >
-                      <MousePointer className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Inspect</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('draw_path')}
-                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'draw_path' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Draw / Extend Route Path"
-                    >
-                      <PenTool className="w-3.5 h-3.5 text-sky-400" />
-                      <span className="hidden sm:inline">Draw Route</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('drop_bus_stop')}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'drop_bus_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Drop Bus Stop"
-                    >
-                      <span>🚏</span>
-                      <span className="hidden md:inline">Bus Stop</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('drop_popup_stop')}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'drop_popup_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Drop Pop-up / Temporary Stop"
-                    >
-                      <span>🚧</span>
-                      <span className="hidden lg:inline">Temp Stop</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('drop_junction')}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'drop_junction' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Drop Critical Junction"
-                    >
-                      <span>🚦</span>
-                      <span className="hidden lg:inline">Junction</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('drop_roadworks')}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'drop_roadworks' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Drop Long-term Roadworks (9m-3yr)"
-                    >
-                      <span>🏗️</span>
-                      <span className="hidden lg:inline">Roadworks</span>
-                    </button>
-
-                    <button
-                      onClick={() => setGisToolMode('drop_hazard')}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        gisToolMode === 'drop_hazard' ? 'bg-red-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                      title="Drop Geotagged 5x5 Hazard"
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="hidden sm:inline">Risk Hazard</span>
-                    </button>
-
-                    <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block"></div>
-
-                    <button
-                      onClick={undoPathPoint}
-                      disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
-                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
-                      title="Undo last path point"
-                    >
-                      <Undo2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => setTileLayer(tileLayer === 'osm' ? 'satellite' : 'osm')}
-                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
-                      title={tileLayer === 'osm' ? 'Switch to Satellite View' : 'Switch to Street View'}
-                    >
-                      <Layers className="w-4 h-4 text-sky-400" />
-                    </button>
-
-                    <button
-                      onClick={handleCenterMap}
-                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
-                      title="Center & Fit Route"
-                    >
-                      <MapPin className="w-4 h-4 text-emerald-400" />
-                    </button>
+                  /* Fullscreen Top-Left Stats Badge */
+                  <div className="absolute top-4 left-4 z-[1000] flex items-center space-x-3 bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700/80 text-xs text-white shadow-2xl pointer-events-none">
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Route</span>
+                      <strong className="font-bold text-amber-400">{currentRoute ? `Line ${currentRoute.routeNumber}` : 'Live Survey'}</strong>
+                    </div>
+                    <div className="h-5 w-px bg-slate-700"></div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
+                      <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
+                    </div>
+                    <div className="h-5 w-px bg-slate-700"></div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
+                      <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
+                    </div>
+                    <div className="h-5 w-px bg-slate-700"></div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
+                      <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
+                    </div>
                   </div>
                 ) : (
                   /* Normal Card View Floating Controls */
@@ -1157,31 +1073,14 @@ export default function LeafletMap() {
                   </div>
                 )}
 
-                {/* 2. FLOATING TOP-RIGHT CONTROLS */}
+                {/* 2. TOP-RIGHT CONTROLS */}
                 {isFullscreen ? (
-                  /* Fullscreen Top-Right Control Bar (Stats + Locate + Follow + Exit Fullscreen) */
+                  /* Fullscreen Top-Right Control Bar (Locate + Follow + Exit Fullscreen) */
                   <div className="absolute top-4 right-4 z-[1000] flex items-center space-x-2">
-                    <div className="hidden md:flex items-center space-x-3 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-slate-700/80 text-xs text-white shadow-xl pointer-events-none">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
-                        <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
-                      </div>
-                      <div className="h-5 w-px bg-slate-700"></div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
-                        <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
-                      </div>
-                      <div className="h-5 w-px bg-slate-700"></div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
-                        <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
-                      </div>
-                    </div>
-
                     <button
                       onClick={handleLocateMe}
                       disabled={isLocating}
-                      className={`bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-3 py-2 rounded-2xl shadow-xl border border-slate-700/80 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                      className={`bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-3.5 py-2 rounded-2xl shadow-xl border border-slate-700/80 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
                         isLocating ? 'opacity-75' : ''
                       }`}
                       title="Center map on your current GPS location"
@@ -1192,7 +1091,7 @@ export default function LeafletMap() {
 
                     <button
                       onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
-                      className={`px-3 py-2 rounded-2xl shadow-xl border text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur-md ${
+                      className={`px-3.5 py-2 rounded-2xl shadow-xl border text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur-md ${
                         isAutoCenterMap 
                           ? 'border-emerald-500/80 bg-emerald-950/80 text-emerald-300 ring-1 ring-emerald-500/50' 
                           : 'bg-slate-900/90 text-slate-400 border-slate-700/80 hover:bg-slate-800'
@@ -1232,19 +1131,112 @@ export default function LeafletMap() {
                   </div>
                 )}
 
-                {/* 3. FLOATING BOTTOM-LEFT: Active Tool Mode Instruction (in Fullscreen) */}
+                {/* 3. FULLSCREEN FLOATING BOTTOM-CENTER GIS TOOLS ISLAND */}
                 {isFullscreen && (
-                  <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/85 backdrop-blur-md text-white text-xs px-3.5 py-2 rounded-xl border border-slate-700/80 shadow-lg pointer-events-none hidden sm:flex items-center space-x-2">
-                    <Info className="w-3.5 h-3.5 text-stagecoach-amber" />
-                    <span className="font-medium text-slate-200">
-                      {gisToolMode === 'browse' && 'Browse Mode: Click any marker or line to inspect.'}
-                      {gisToolMode === 'draw_path' && 'Drawing Mode: Click map to place path coordinates.'}
-                      {gisToolMode === 'drop_bus_stop' && 'Click map to place a Timetable Bus Stop.'}
-                      {gisToolMode === 'drop_popup_stop' && 'Click map to place a Temporary Diversion Stop.'}
-                      {gisToolMode === 'drop_junction' && 'Click map to place a Critical Junction.'}
-                      {gisToolMode === 'drop_roadworks' && 'Click map to place 9m-3yr Roadworks.'}
-                      {gisToolMode === 'drop_hazard' && 'Click map to drop a Geotagged Risk Hazard.'}
-                    </span>
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] flex flex-wrap items-center justify-center gap-1.5 bg-slate-900/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl border border-slate-700/80 max-w-[calc(100vw-32px)]">
+                    <button
+                      onClick={() => setGisToolMode('browse')}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'browse' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Select & Inspect elements"
+                    >
+                      <MousePointer className="w-3.5 h-3.5" />
+                      <span>Inspect</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('draw_path')}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'draw_path' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Draw / Extend Route Path"
+                    >
+                      <PenTool className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Draw</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_bus_stop')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_bus_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Bus Stop"
+                    >
+                      <span>🚏</span>
+                      <span>Stop</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_popup_stop')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_popup_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Pop-up / Temporary Stop"
+                    >
+                      <span>🚧</span>
+                      <span>Temp</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_junction')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_junction' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Critical Junction"
+                    >
+                      <span>🚦</span>
+                      <span>Junction</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_roadworks')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_roadworks' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Long-term Roadworks (9m-3yr)"
+                    >
+                      <span>🏗️</span>
+                      <span>Roadworks</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_hazard')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_hazard' ? 'bg-red-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Geotagged 5x5 Hazard"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Hazard</span>
+                    </button>
+
+                    <div className="h-5 w-px bg-slate-700 mx-1"></div>
+
+                    <button
+                      onClick={undoPathPoint}
+                      disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
+                      title="Undo last path point"
+                    >
+                      <Undo2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => setTileLayer(tileLayer === 'osm' ? 'satellite' : 'osm')}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
+                      title={tileLayer === 'osm' ? 'Switch to Satellite View' : 'Switch to Street View'}
+                    >
+                      <Layers className="w-4 h-4 text-sky-400" />
+                    </button>
+
+                    <button
+                      onClick={handleCenterMap}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
+                      title="Center & Fit Route"
+                    >
+                      <MapPin className="w-4 h-4 text-emerald-400" />
+                    </button>
                   </div>
                 )}
 
