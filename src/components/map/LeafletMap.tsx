@@ -74,6 +74,7 @@ export default function LeafletMap() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
+  const mapWrapperRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const polylineLayerRef = useRef<L.Polyline | null>(null);
@@ -83,6 +84,67 @@ export default function LeafletMap() {
   const gpsWatchIdRef = useRef<number | null>(null);
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
   const wakeLockSentinelRef = useRef<any>(null);
+
+  // Toggle Fullscreen with HTML5 API + CSS fallback
+  const toggleFullscreen = async () => {
+    const nextState = !isFullscreen;
+    setIsFullscreen(nextState);
+
+    try {
+      if (nextState) {
+        const elem = mapWrapperRef.current;
+        if (elem && elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if (elem && (elem as any).webkitRequestFullscreen) {
+          await (elem as any).webkitRequestFullscreen();
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Native fullscreen request ignored, using CSS mode:', err);
+    }
+  };
+
+  // Sync native fullscreen state (e.g. if user presses Escape key)
+  useEffect(() => {
+    const handleNativeFullscreenChange = () => {
+      const isNativeFull = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(isNativeFull);
+    };
+
+    document.addEventListener('fullscreenchange', handleNativeFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleNativeFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleNativeFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleNativeFullscreenChange);
+    };
+  }, []);
+
+  // Guarantee Leaflet recalculates dimensions across all layout frames on fullscreen toggle
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const invalidate = () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize({ animate: false });
+      }
+    };
+    invalidate();
+    const t1 = setTimeout(invalidate, 50);
+    const t2 = setTimeout(invalidate, 150);
+    const t3 = setTimeout(invalidate, 300);
+    const t4 = setTimeout(invalidate, 600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+    };
+  }, [isFullscreen]);
 
   // Screen Wake Lock handlers to keep mobile screen on during GPS survey
   const requestWakeLock = async () => {
@@ -893,18 +955,21 @@ export default function LeafletMap() {
           <div className="lg:col-span-8 xl:col-span-9 space-y-3">
             
             {/* The Outer Wrapper that seamlessly handles Fullscreen without unmounting the Map */}
-            <div className={`${
-              isFullscreen 
-                ? 'fixed inset-0 z-50 bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden' 
-                : 'bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
-            }`}>
+            <div 
+              ref={mapWrapperRef}
+              className={`${
+                isFullscreen 
+                  ? 'fixed inset-0 z-[9999] bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden flex flex-col' 
+                  : 'bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
+              }`}
+            >
               
               {/* Floating Controls (Fullscreen, Locate Me & Auto-Center Follow) */}
               <div className={`absolute z-30 flex flex-wrap items-center gap-2 ${
                 isFullscreen ? 'top-4 right-14' : 'top-5 left-5'
               }`}>
                 <button
-                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  onClick={toggleFullscreen}
                   className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
                   title={isFullscreen ? 'Exit Fullscreen' : 'Expand Map to Fullscreen'}
                 >
@@ -1001,9 +1066,9 @@ export default function LeafletMap() {
               {/* THE MAP ELEMENT (Continuously Mounted in DOM) */}
               <div
                 ref={mapContainerRef}
-                className={`w-full transition-all duration-150 z-10 ${
+                className={`w-full z-10 ${
                   isFullscreen 
-                    ? 'h-screen w-screen' 
+                    ? 'w-full h-full flex-1 min-h-0' 
                     : 'h-[580px] sm:h-[620px] rounded-xl overflow-hidden'
                 }`}
               />
