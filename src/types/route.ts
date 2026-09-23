@@ -1,4 +1,12 @@
-export type StopType = 'bus_stop' | 'popup_stop' | 'junction' | 'roadworks' | 'other';
+export type StopType = 
+  | 'main_stop_time_point' 
+  | 'bus_stop_regular' 
+  | 'junction' 
+  | 'roadworks_long_term' 
+  | 'other'
+  | 'bus_stop' 
+  | 'popup_stop' 
+  | 'roadworks';
 
 export interface RouteStop {
   id: string;
@@ -41,6 +49,8 @@ export interface HazardObservation {
   residualLikelihood: HazardLikelihood;
   residualScore: number;
   controlMeasures: string;
+  riskDescription?: string;
+  controlMeasure?: string;
   speedLimitMph?: number;
   vehicleRestrictions?: string[];
   photos?: string[];

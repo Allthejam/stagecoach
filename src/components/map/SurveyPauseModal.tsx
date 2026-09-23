@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from 'react';
 import { useRouteContext } from '@/context/RouteContext';
@@ -61,7 +61,7 @@ const PAUSE_REASONS: { reason: SurveyPauseReason; icon: React.ReactNode; desc: s
 ];
 
 export default function SurveyPauseModal() {
-  const { isPauseModalOpen, setIsPauseModalOpen, pauseLiveSurvey } = useRouteContext();
+  const { isPauseModalOpen, setIsPauseModalOpen, pauseLiveSurvey, setIsSetRiskModalOpen } = useRouteContext();
   const [selectedReason, setSelectedReason] = useState<SurveyPauseReason>('Hazard Site Inspection');
   const [customNote, setCustomNote] = useState('');
 
@@ -154,22 +154,37 @@ export default function SurveyPauseModal() {
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-end space-x-2">
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => setIsPauseModalOpen(false)}
-            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+            onClick={() => {
+              handleConfirmPause();
+              setIsSetRiskModalOpen(true);
+            }}
+            className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer"
+            title="Pause and immediately document a hazard with camera photos"
           >
-            Cancel
+            <AlertTriangle className="w-4 h-4 text-white" />
+            <span>📸 Pause & Set Risk</span>
           </button>
-          <button
-            type="button"
-            onClick={handleConfirmPause}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
-          >
-            <PauseCircle className="w-4 h-4" />
-            <span>Confirm & Pause Survey</span>
-          </button>
+
+          <div className="flex items-center space-x-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setIsPauseModalOpen(false)}
+              className="px-3.5 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmPause}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
+            >
+              <PauseCircle className="w-4 h-4" />
+              <span>Confirm Pause</span>
+            </button>
+          </div>
         </div>
 
       </div>

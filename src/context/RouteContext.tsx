@@ -5,6 +5,7 @@ import {
   RouteAssessment, 
   GisToolMode, 
   HazardObservation, 
+  HazardCategory,
   RouteStop, 
   StopType,
   SurveyStatus,
@@ -66,11 +67,28 @@ interface RouteContextType {
   setIsPauseModalOpen: (open: boolean) => void;
   isSurveySummaryModalOpen: boolean;
   setIsSurveySummaryModalOpen: (open: boolean) => void;
+  isSetRiskModalOpen: boolean;
+  setIsSetRiskModalOpen: (open: boolean) => void;
+  isCategorisationWizardOpen: boolean;
+  setIsCategorisationWizardOpen: (open: boolean) => void;
+  isAutoCenterMap: boolean;
+  setIsAutoCenterMap: (autoCenter: boolean) => void;
   startLiveSurvey: () => void;
   pauseLiveSurvey: (reason?: SurveyPauseReason | string) => void;
   resumeLiveSurvey: () => void;
   stopLiveSurvey: () => void;
   resetLiveSurvey: () => void;
+  quickSaveRiskHazard: (data: {
+    title?: string;
+    category?: HazardCategory;
+    riskDescription: string;
+    controlMeasure: string;
+    photos?: string[];
+    lat: number;
+    lng: number;
+    locationName?: string;
+  }) => void;
+  batchUpdateStopCategories: (updatedStops: RouteStop[]) => void;
   recordGpsBreadcrumb: (lat: number, lng: number, speedMps?: number | null, accuracyMeters?: number | null) => void;
   
   // Dynamic Cascading Filters built strictly from database routes
@@ -166,6 +184,9 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   const [activePauseReason, setActivePauseReason] = useState<SurveyPauseReason | string>('Hazard Site Inspection');
   const [isPauseModalOpen, setIsPauseModalOpen] = useState(false);
   const [isSurveySummaryModalOpen, setIsSurveySummaryModalOpen] = useState(false);
+  const [isSetRiskModalOpen, setIsSetRiskModalOpen] = useState(false);
+  const [isCategorisationWizardOpen, setIsCategorisationWizardOpen] = useState(false);
+  const [isAutoCenterMap, setIsAutoCenterMap] = useState(true);
 
   const currentPauseLogRef = useRef<SurveyPauseLog | null>(null);
   const lastRecordedCoordRef = useRef<[number, number] | null>(null);
@@ -679,6 +700,58 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     showToast(`Assigned Route to ${assessorName}`);
   };
 
+  const quickSaveRiskHazard = (data: {
+    title?: string;
+    category?: HazardCategory;
+    riskDescription: string;
+    controlMeasure: string;
+    photos?: string[];
+    lat: number;
+    lng: number;
+    locationName?: string;
+  }) => {
+    if (!currentRoute) return;
+    const autoTitle = data.title?.trim() || data.category || 'Live Risk Observation';
+    const autoLoc = data.locationName?.trim() || `GPS [${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}]`;
+
+    const newHazard: HazardObservation = {
+      id: 'haz_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      title: autoTitle,
+      category: data.category || 'Other Operational Hazard',
+      lat: data.lat,
+      lng: data.lng,
+      locationName: autoLoc,
+      severity: 3,
+      likelihood: 3,
+      initialScore: 9,
+      residualSeverity: 2,
+      residualLikelihood: 2,
+      residualScore: 4,
+      controlMeasures: data.controlMeasure,
+      riskDescription: data.riskDescription,
+      controlMeasure: data.controlMeasure,
+      photos: data.photos || [],
+      timestamp: new Date().toISOString(),
+    };
+
+    updateCurrentRoute((prev) => ({
+      ...prev,
+      hazards: [...(prev.hazards || []), newHazard],
+      updatedAt: new Date().toISOString(),
+    }));
+
+    showToast(`🔴 Red Pin Risk Saved: ${autoTitle}`);
+  };
+
+  const batchUpdateStopCategories = (updatedStops: RouteStop[]) => {
+    updateCurrentRoute((prev) => ({
+      ...prev,
+      stops: updatedStops,
+      updatedAt: new Date().toISOString(),
+    }));
+    showToast('Stop categorisations successfully updated');
+  };
+
   return (
     <RouteContext.Provider
       value={{
@@ -712,11 +785,19 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         setIsPauseModalOpen,
         isSurveySummaryModalOpen,
         setIsSurveySummaryModalOpen,
+        isSetRiskModalOpen,
+        setIsSetRiskModalOpen,
+        isCategorisationWizardOpen,
+        setIsCategorisationWizardOpen,
+        isAutoCenterMap,
+        setIsAutoCenterMap,
         startLiveSurvey,
         pauseLiveSurvey,
         resumeLiveSurvey,
         stopLiveSurvey,
         resetLiveSurvey,
+        quickSaveRiskHazard,
+        batchUpdateStopCategories,
         recordGpsBreadcrumb,
         updateCurrentRoute,
         saveCurrentRoute,

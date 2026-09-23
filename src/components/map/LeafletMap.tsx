@@ -12,6 +12,8 @@ import AddHazardModal from './AddHazardModal';
 import LiveSurveyControlBar from './LiveSurveyControlBar';
 import SurveyPauseModal from './SurveyPauseModal';
 import SurveySummaryModal from './SurveySummaryModal';
+import QuickSetRiskModal from './QuickSetRiskModal';
+import StopCategorisationWizard from './StopCategorisationWizard';
 import { usePwa } from '@/context/PwaContext';
 import { 
   Maximize2, 
@@ -63,6 +65,8 @@ export default function LeafletMap() {
     showToast,
     surveyStatus,
     recordGpsBreadcrumb,
+    isAutoCenterMap,
+    setIsAutoCenterMap,
   } = useRouteContext();
 
   const { openPermissionsModal, requestGpsPermission, gpsPermission } = usePwa();
@@ -250,19 +254,29 @@ export default function LeafletMap() {
 
     currentRoute.stops.forEach((stop) => {
       let iconEmoji = '🚏';
-      let bgColor = 'bg-blue-600';
-      if (stop.stopType === 'popup_stop') {
-        iconEmoji = '🚧';
-        bgColor = 'bg-amber-600';
+      let bgColor = 'bg-sky-600';
+      let labelType = 'Bus Stop';
+
+      if (stop.stopType === 'main_stop_time_point' || (stop.stopType as string) === 'popup_stop') {
+        iconEmoji = '⏱️';
+        bgColor = 'bg-blue-600 ring-2 ring-amber-400';
+        labelType = 'Main Stop ("Time Point")';
+      } else if (stop.stopType === 'bus_stop_regular' || (stop.stopType as string) === 'bus_stop') {
+        iconEmoji = '🚏';
+        bgColor = 'bg-sky-600';
+        labelType = 'Bus Stop (Not Time Point)';
       } else if (stop.stopType === 'junction') {
         iconEmoji = '🚦';
         bgColor = 'bg-purple-600';
-      } else if (stop.stopType === 'roadworks') {
-        iconEmoji = '🏗️';
-        bgColor = 'bg-orange-600';
+        labelType = 'Main Road Junction';
+      } else if (stop.stopType === 'roadworks_long_term' || (stop.stopType as string) === 'roadworks') {
+        iconEmoji = '🚧';
+        bgColor = 'bg-emerald-600';
+        labelType = 'Planned Roadworks (9m-3yr)';
       } else if (stop.stopType === 'other') {
         iconEmoji = '📍';
-        bgColor = 'bg-slate-700';
+        bgColor = 'bg-amber-500';
+        labelType = 'Other';
       }
 
       const stopIcon = L.divIcon({
@@ -286,7 +300,7 @@ export default function LeafletMap() {
         <div style="font-family: inherit; min-width: 180px; padding: 4px;">
           <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${stop.name}</div>
           <div style="font-size: 11px; color: #475569; margin-top: 2px;">
-            Type: <strong>${stop.stopType.replace('_', ' ').toUpperCase()}</strong>
+            Type: <strong>${labelType}</strong>
           </div>
           <div style="font-size: 11px; color: #475569;">
             Dwell Time: <strong>${stop.dwellMinutes} min</strong>
@@ -302,10 +316,10 @@ export default function LeafletMap() {
       const hazardIcon = L.divIcon({
         className: 'custom-hazard-marker',
         html: `
-          <div class="relative flex items-center justify-center w-9 h-9 rounded-full ${isHighRisk ? 'bg-red-600 animate-bounce' : 'bg-amber-600'} text-white shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition-transform">
+          <div class="relative flex items-center justify-center w-9 h-9 rounded-full ${isHighRisk ? 'bg-red-600 animate-bounce' : 'bg-red-600'} text-white shadow-2xl border-2 border-white cursor-pointer hover:scale-125 transition-transform">
             <span class="text-sm">⚠️</span>
             <span class="absolute -bottom-1.5 -right-1.5 bg-black text-white text-[9px] font-extrabold px-1 rounded-full border border-white">
-              ${hazard.residualScore}
+              ${hazard.residualScore || 4}
             </span>
           </div>
         `,
@@ -318,21 +332,33 @@ export default function LeafletMap() {
 
       const popupDiv = document.createElement('div');
       popupDiv.style.fontFamily = 'inherit';
-      popupDiv.style.minWidth = '220px';
+      popupDiv.style.minWidth = '240px';
+      popupDiv.style.maxWidth = '280px';
       popupDiv.style.padding = '4px';
+
+      let photosHtml = '';
+      if (hazard.photos && hazard.photos.length > 0) {
+        photosHtml = `
+          <div style="display: flex; gap: 4px; margin-top: 6px; overflow-x: auto; padding-bottom: 2px;">
+            ${hazard.photos.map(p => `<img src="${p}" style="width: 55px; height: 42px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;" />`).join('')}
+          </div>
+        `;
+      }
 
       popupDiv.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
           <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #b91c1c;">⚠️ ${hazard.category}</span>
           <span style="font-size: 10px; font-weight: 800; background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 9999px;">
-            Score: ${hazard.residualScore}
+            Score: ${hazard.residualScore || 4}
           </span>
         </div>
         <div style="font-weight: 800; font-size: 13px; color: #0f172a; line-height: 1.3;">${hazard.title}</div>
         <div style="font-size: 11px; color: #475569; margin-top: 2px;">📍 ${hazard.locationName}</div>
+        ${hazard.riskDescription ? `<div style="font-size: 11px; color: #991b1b; margin-top: 4px;"><strong>Risk:</strong> ${hazard.riskDescription}</div>` : ''}
         <div style="font-size: 11px; color: #15803d; margin-top: 4px; font-weight: 600;">
-          🛡️ ${hazard.controlMeasures.length > 55 ? hazard.controlMeasures.substring(0, 55) + '...' : hazard.controlMeasures}
+          🛡️ <strong>Control:</strong> ${hazard.controlMeasure || hazard.controlMeasures}
         </div>
+        ${photosHtml}
         <button id="view-hazard-btn-${hazard.id}" style="margin-top: 8px; width: 100%; background: #002D62; color: white; border: none; border-radius: 8px; padding: 6px; font-size: 11px; font-weight: 700; cursor: pointer;">
           View Full Assessment Details
         </button>
@@ -448,6 +474,11 @@ export default function LeafletMap() {
         recordGpsBreadcrumb(latitude, longitude, speed, accuracy);
 
         if (mapInstanceRef.current && L) {
+          // Keep GPS location strictly centered on screen and move map as vehicle moves
+          if (isAutoCenterMap || surveyStatus === 'recording') {
+            mapInstanceRef.current.panTo(posCoord, { animate: true, duration: 0.8 });
+          }
+
           if (!accuracyCircleRef.current) {
             accuracyCircleRef.current = L.circle(posCoord, {
               radius: accuracy || 15,
@@ -868,8 +899,8 @@ export default function LeafletMap() {
                 : 'bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
             }`}>
               
-              {/* Floating Controls (Fullscreen & Locate Me) */}
-              <div className={`absolute z-30 flex items-center space-x-2 ${
+              {/* Floating Controls (Fullscreen, Locate Me & Auto-Center Follow) */}
+              <div className={`absolute z-30 flex flex-wrap items-center gap-2 ${
                 isFullscreen ? 'top-4 right-14' : 'top-5 left-5'
               }`}>
                 <button
@@ -900,6 +931,19 @@ export default function LeafletMap() {
                 >
                   <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
                   <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
+                  className={`bg-slate-900/90 hover:bg-slate-800 px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    isAutoCenterMap 
+                      ? 'border-emerald-500/60 bg-slate-900 text-emerald-300 ring-1 ring-emerald-500/40' 
+                      : 'text-slate-400'
+                  }`}
+                  title="Keeps your GPS location strictly centered on screen as the vehicle moves"
+                >
+                  <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
+                  <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
                 </button>
               </div>
 
@@ -967,12 +1011,13 @@ export default function LeafletMap() {
               {/* Bottom Legend (in Card view only) */}
               {!isFullscreen && (
                 <div className="mt-2.5 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between text-[11px] text-slate-600 gap-2">
-                  <div className="flex items-center space-x-4">
-                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span><span>Bus Stop 🚏</span></span>
-                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-600 inline-block"></span><span>Pop-up Stop 🚧</span></span>
+                  <div className="flex items-center space-x-3 sm:space-x-4 flex-wrap">
+                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span><span>Time Point ⏱️</span></span>
+                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block"></span><span>Bus Stop 🚏</span></span>
                     <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block"></span><span>Junction 🚦</span></span>
-                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-600 inline-block"></span><span>Roadworks 🏗️</span></span>
-                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span><span>Hazard ⚠️</span></span>
+                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span><span>Roadworks (9m-3yr) 🚧</span></span>
+                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span><span>Risk Event 🔴</span></span>
+                    <span className="flex items-center space-x-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span><span>Other 📍</span></span>
                   </div>
                   <div className="text-[10px] text-slate-400 font-mono">
                     Highland GIS Engine • Scottish Grid
@@ -993,6 +1038,8 @@ export default function LeafletMap() {
       <AddHazardModal />
       <SurveyPauseModal />
       <SurveySummaryModal />
+      <QuickSetRiskModal />
+      <StopCategorisationWizard />
     </>
   );
 }

@@ -38,7 +38,12 @@ export default function LiveSurveyControlBar() {
     setIsPauseModalOpen,
     userGpsPosition,
     setIsAddHazardModalOpen,
-    setPendingCoords
+    setPendingCoords,
+    setIsSetRiskModalOpen,
+    setIsCategorisationWizardOpen,
+    isAutoCenterMap,
+    setIsAutoCenterMap,
+    currentRoute
   } = useRouteContext();
 
   const { gpsPermission, openPermissionsModal, requestGpsPermission } = usePwa();
@@ -58,12 +63,15 @@ export default function LiveSurveyControlBar() {
     startLiveSurvey();
   };
 
-  const handlePinHazardAtGps = () => {
-    if (userGpsPosition) {
-      setPendingCoords(userGpsPosition);
-      setIsAddHazardModalOpen(true);
+  const handleOpenSetRisk = () => {
+    setIsSetRiskModalOpen(true);
+  };
+
+  const handleFinish = () => {
+    if (currentRoute?.stops && currentRoute.stops.length > 0) {
+      setIsCategorisationWizardOpen(true);
     } else {
-      setIsAddHazardModalOpen(true);
+      stopLiveSurvey();
     }
   };
 
@@ -112,7 +120,7 @@ export default function LiveSurveyControlBar() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         
         {/* Left Section: Status & Timers */}
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           
           {/* Status Badge */}
           <div className="flex items-center space-x-2.5">
@@ -128,7 +136,7 @@ export default function LiveSurveyControlBar() {
                 </span>
               </div>
               {isPaused && (
-                <p className="text-[11px] text-amber-200/80 max-w-[200px] truncate">
+                <p className="text-[11px] text-amber-200/80 max-w-[180px] truncate">
                   Hold: {activePauseReason}
                 </p>
               )}
@@ -140,7 +148,7 @@ export default function LiveSurveyControlBar() {
             <Clock className="w-4 h-4 text-emerald-400" />
             <div>
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Drive Time</div>
-              <div className="font-mono text-sm sm:text-base font-black text-white">
+              <div className="font-mono text-xs sm:text-sm font-black text-white">
                 {formatDurationHMS(surveyActiveSeconds)}
               </div>
             </div>
@@ -152,7 +160,7 @@ export default function LiveSurveyControlBar() {
               <Pause className="w-4 h-4 text-amber-400" />
               <div>
                 <div className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Hold Time</div>
-                <div className="font-mono text-sm sm:text-base font-black text-amber-300">
+                <div className="font-mono text-xs sm:text-sm font-black text-amber-300">
                   {formatDurationHMS(surveyPausedSeconds)}
                 </div>
               </div>
@@ -161,7 +169,7 @@ export default function LiveSurveyControlBar() {
         </div>
 
         {/* Middle Section: Speedometer & Distance */}
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           
           {/* Live Speed */}
           <div className="flex items-center space-x-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5">
@@ -201,15 +209,15 @@ export default function LiveSurveyControlBar() {
         {/* Right Section: Action Controls */}
         <div className="flex items-center space-x-2">
           
-          {/* Pin Hazard at current GPS */}
+          {/* Set Risk (Opens Quick Risk Capture with Camera & 2 text boxes) */}
           <button
             type="button"
-            onClick={handlePinHazardAtGps}
-            className="px-3 py-2 bg-red-950/40 hover:bg-red-950/80 text-red-300 border border-red-800/60 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
-            title="Geotag a hazard at current GPS coordinates"
+            onClick={handleOpenSetRisk}
+            className="px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
+            title="Attach photos and record a hazard event at current location"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-            <span className="hidden sm:inline">Pin Hazard</span>
+            <AlertTriangle className="w-4 h-4 text-white" />
+            <span>Set Risk</span>
           </button>
 
           {/* Pause / Resume Button */}
@@ -217,28 +225,28 @@ export default function LiveSurveyControlBar() {
             <button
               type="button"
               onClick={() => setIsPauseModalOpen(true)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+              className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
             >
               <Pause className="w-4 h-4 fill-slate-950" />
-              <span>Pause Survey</span>
+              <span>Pause</span>
             </button>
           ) : isPaused ? (
             <button
               type="button"
               onClick={resumeLiveSurvey}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer animate-pulse"
+              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer animate-pulse"
             >
               <Play className="w-4 h-4 fill-slate-950" />
-              <span>Resume Survey</span>
+              <span>Resume</span>
             </button>
           ) : null}
 
           {/* Stop / Finish Survey */}
           <button
             type="button"
-            onClick={stopLiveSurvey}
+            onClick={handleFinish}
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer"
-            title="Stop survey and generate telemetry report"
+            title="Finish survey and categorise stops"
           >
             <Square className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
             <span>Finish</span>
