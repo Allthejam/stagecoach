@@ -974,79 +974,13 @@ export default function LeafletMap() {
               ref={mapWrapperRef}
               className={`${
                 isFullscreen 
-                  ? 'fixed inset-0 z-[9990] bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden flex flex-col' 
+                  ? 'fixed inset-0 z-[9990] bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden' 
                   : 'bg-white p-3 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
               }`}
             >
               
-              {/* === FULLSCREEN VIEW HEADER === */}
-              {isFullscreen ? (
-                <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between z-30 shadow-md gap-3 flex-shrink-0">
-                  {/* Left: GIS Toolbar */}
-                  <div className="flex items-center">
-                    <GisToolbar onCenterMap={handleCenterMap} onToggleGps={handleToggleGps} />
-                  </div>
-
-                  {/* Right: GPS / Follow Controls & Exit Fullscreen */}
-                  <div className="flex items-center space-x-2.5">
-                    {/* Stats */}
-                    <div className="hidden sm:flex items-center space-x-3 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 text-xs text-white">
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
-                        <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
-                      </div>
-                      <div className="h-5 w-px bg-slate-700"></div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
-                        <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
-                      </div>
-                      <div className="h-5 w-px bg-slate-700"></div>
-                      <div>
-                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
-                        <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
-                      </div>
-                    </div>
-
-                    {/* Locate Me */}
-                    <button
-                      onClick={handleLocateMe}
-                      disabled={isLocating}
-                      className={`bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl shadow border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                        isLocating ? 'opacity-75' : ''
-                      }`}
-                      title="Center map on your current GPS location"
-                    >
-                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
-                      <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
-                    </button>
-
-                    {/* Follow Toggle */}
-                    <button
-                      onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
-                      className={`px-3 py-1.5 rounded-xl shadow border text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                        isAutoCenterMap 
-                          ? 'border-emerald-500/60 bg-emerald-950/60 text-emerald-300 ring-1 ring-emerald-500/40' 
-                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
-                      }`}
-                      title="Keeps your GPS location strictly centered on screen as the vehicle moves"
-                    >
-                      <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                      <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
-                    </button>
-
-                    {/* Exit Fullscreen Button */}
-                    <button
-                      onClick={toggleFullscreen}
-                      className="bg-stagecoach-amber hover:bg-amber-600 text-slate-950 px-3.5 py-1.5 rounded-xl shadow-lg font-black text-xs flex items-center space-x-1.5 transition-all cursor-pointer"
-                      title="Exit Fullscreen (Esc)"
-                    >
-                      <Minimize2 className="w-4 h-4 text-slate-950" />
-                      <span>Exit Fullscreen</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* === CARD VIEW MODE PROMPT STRIP (Cleanly on top with zero overlapping buttons!) === */
+              {/* === CARD VIEW ONLY: TOP PROMPT STRIP === */}
+              {!isFullscreen && (
                 <div className="bg-slate-100 text-slate-700 text-xs px-3.5 py-2 rounded-xl mb-2.5 flex items-center justify-between border border-slate-200">
                   <span className="font-semibold flex items-center space-x-2">
                     <Info className="w-4 h-4 text-stagecoach-blue flex-shrink-0" />
@@ -1069,53 +1003,165 @@ export default function LeafletMap() {
                 </div>
               )}
 
-              {/* Map Container Viewport */}
+              {/* === MAP CONTAINER VIEWPORT (100% Edge-to-Edge in Fullscreen) === */}
               <div className={`relative ${
                 isFullscreen 
-                  ? 'flex-1 w-full h-full min-h-0' 
+                  ? 'w-full h-full' 
                   : 'w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-slate-200 shadow-inner'
               }`}>
-                {/* Floating Map Actions (Only in Card View, positioned cleanly at top-3 left-3 over the map canvas) */}
-                {!isFullscreen && (
-                  <>
-                    <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-auto">
-                      <button
-                        onClick={toggleFullscreen}
-                        className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur"
-                        title="Expand Map to Fullscreen"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
-                        <span>Fullscreen</span>
-                      </button>
+                
+                {/* 1. FLOATING TOP-LEFT CONTROLS */}
+                {isFullscreen ? (
+                  /* Fullscreen Floating GIS Tools Dock */
+                  <div className="absolute top-4 left-4 z-[1000] flex flex-wrap items-center gap-1.5 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl border border-slate-700/80 max-w-[calc(100vw-32px)]">
+                    <button
+                      onClick={() => setGisToolMode('browse')}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'browse' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Select & Inspect elements"
+                    >
+                      <MousePointer className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Inspect</span>
+                    </button>
 
-                      <button
-                        onClick={handleLocateMe}
-                        disabled={isLocating}
-                        className={`bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
-                          isLocating ? 'opacity-75' : ''
-                        }`}
-                        title="Center map on your current GPS location"
-                      >
-                        <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
-                        <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
-                      </button>
+                    <button
+                      onClick={() => setGisToolMode('draw_path')}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'draw_path' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Draw / Extend Route Path"
+                    >
+                      <PenTool className="w-3.5 h-3.5 text-sky-400" />
+                      <span className="hidden sm:inline">Draw Route</span>
+                    </button>
 
-                      <button
-                        onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
-                        className={`bg-slate-900/90 hover:bg-slate-800 px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
-                          isAutoCenterMap 
-                            ? 'border-emerald-500/60 bg-slate-900 text-emerald-300 ring-1 ring-emerald-500/40' 
-                            : 'text-slate-400'
-                        }`}
-                        title="Keeps your GPS location strictly centered on screen as the vehicle moves"
-                      >
-                        <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                        <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setGisToolMode('drop_bus_stop')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_bus_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Bus Stop"
+                    >
+                      <span>🚏</span>
+                      <span className="hidden md:inline">Bus Stop</span>
+                    </button>
 
-                    {/* Floating Top HUD Stats (at top-3 right-3 over map canvas) */}
-                    <div className="absolute top-3 right-3 z-[1000] bg-slate-900/90 backdrop-blur text-white px-3 py-1.5 rounded-xl shadow-lg border border-slate-700 flex items-center space-x-3 text-xs pointer-events-none">
+                    <button
+                      onClick={() => setGisToolMode('drop_popup_stop')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_popup_stop' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Pop-up / Temporary Stop"
+                    >
+                      <span>🚧</span>
+                      <span className="hidden lg:inline">Temp Stop</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_junction')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_junction' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Critical Junction"
+                    >
+                      <span>🚦</span>
+                      <span className="hidden lg:inline">Junction</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_roadworks')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_roadworks' ? 'bg-stagecoach-blue text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Long-term Roadworks (9m-3yr)"
+                    >
+                      <span>🏗️</span>
+                      <span className="hidden lg:inline">Roadworks</span>
+                    </button>
+
+                    <button
+                      onClick={() => setGisToolMode('drop_hazard')}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        gisToolMode === 'drop_hazard' ? 'bg-red-600 text-white shadow' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title="Drop Geotagged 5x5 Hazard"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Risk Hazard</span>
+                    </button>
+
+                    <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
+                    <button
+                      onClick={undoPathPoint}
+                      disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
+                      title="Undo last path point"
+                    >
+                      <Undo2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => setTileLayer(tileLayer === 'osm' ? 'satellite' : 'osm')}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
+                      title={tileLayer === 'osm' ? 'Switch to Satellite View' : 'Switch to Street View'}
+                    >
+                      <Layers className="w-4 h-4 text-sky-400" />
+                    </button>
+
+                    <button
+                      onClick={handleCenterMap}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 transition"
+                      title="Center & Fit Route"
+                    >
+                      <MapPin className="w-4 h-4 text-emerald-400" />
+                    </button>
+                  </div>
+                ) : (
+                  /* Normal Card View Floating Controls */
+                  <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-auto">
+                    <button
+                      onClick={toggleFullscreen}
+                      className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur"
+                      title="Expand Map to Fullscreen"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
+                      <span>Fullscreen</span>
+                    </button>
+
+                    <button
+                      onClick={handleLocateMe}
+                      disabled={isLocating}
+                      className={`bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
+                        isLocating ? 'opacity-75' : ''
+                      }`}
+                      title="Center map on your current GPS location"
+                    >
+                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
+                      <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
+                      className={`bg-slate-900/90 hover:bg-slate-800 px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
+                        isAutoCenterMap 
+                          ? 'border-emerald-500/60 bg-slate-900 text-emerald-300 ring-1 ring-emerald-500/40' 
+                          : 'text-slate-400'
+                      }`}
+                      title="Keeps your GPS location strictly centered on screen as the vehicle moves"
+                    >
+                      <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
+                      <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 2. FLOATING TOP-RIGHT CONTROLS */}
+                {isFullscreen ? (
+                  /* Fullscreen Top-Right Control Bar (Stats + Locate + Follow + Exit Fullscreen) */
+                  <div className="absolute top-4 right-4 z-[1000] flex items-center space-x-2">
+                    <div className="hidden md:flex items-center space-x-3 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-slate-700/80 text-xs text-white shadow-xl pointer-events-none">
                       <div>
                         <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
                         <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
@@ -1131,13 +1177,81 @@ export default function LeafletMap() {
                         <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
                       </div>
                     </div>
-                  </>
+
+                    <button
+                      onClick={handleLocateMe}
+                      disabled={isLocating}
+                      className={`bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-3 py-2 rounded-2xl shadow-xl border border-slate-700/80 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                        isLocating ? 'opacity-75' : ''
+                      }`}
+                      title="Center map on your current GPS location"
+                    >
+                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
+                      <span className="hidden sm:inline">{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
+                      className={`px-3 py-2 rounded-2xl shadow-xl border text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur-md ${
+                        isAutoCenterMap 
+                          ? 'border-emerald-500/80 bg-emerald-950/80 text-emerald-300 ring-1 ring-emerald-500/50' 
+                          : 'bg-slate-900/90 text-slate-400 border-slate-700/80 hover:bg-slate-800'
+                      }`}
+                      title="Keeps your GPS location strictly centered on screen as the vehicle moves"
+                    >
+                      <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
+                      <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
+                    </button>
+
+                    <button
+                      onClick={toggleFullscreen}
+                      className="bg-stagecoach-amber hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-2xl shadow-2xl font-black text-xs flex items-center space-x-1.5 transition-all cursor-pointer border border-amber-300"
+                      title="Exit Fullscreen (Esc)"
+                    >
+                      <Minimize2 className="w-4 h-4 text-slate-950" />
+                      <span>Exit Fullscreen</span>
+                    </button>
+                  </div>
+                ) : (
+                  /* Normal Card View Top-Right HUD Stats */
+                  <div className="absolute top-3 right-3 z-[1000] bg-slate-900/90 backdrop-blur text-white px-3 py-1.5 rounded-xl shadow-lg border border-slate-700 flex items-center space-x-3 text-xs pointer-events-none">
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
+                      <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
+                    </div>
+                    <div className="h-5 w-px bg-slate-700"></div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
+                      <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
+                    </div>
+                    <div className="h-5 w-px bg-slate-700"></div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
+                      <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
+                    </div>
+                  </div>
                 )}
 
-                {/* THE MAP ELEMENT (Continuously Mounted in DOM) */}
+                {/* 3. FLOATING BOTTOM-LEFT: Active Tool Mode Instruction (in Fullscreen) */}
+                {isFullscreen && (
+                  <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/85 backdrop-blur-md text-white text-xs px-3.5 py-2 rounded-xl border border-slate-700/80 shadow-lg pointer-events-none hidden sm:flex items-center space-x-2">
+                    <Info className="w-3.5 h-3.5 text-stagecoach-amber" />
+                    <span className="font-medium text-slate-200">
+                      {gisToolMode === 'browse' && 'Browse Mode: Click any marker or line to inspect.'}
+                      {gisToolMode === 'draw_path' && 'Drawing Mode: Click map to place path coordinates.'}
+                      {gisToolMode === 'drop_bus_stop' && 'Click map to place a Timetable Bus Stop.'}
+                      {gisToolMode === 'drop_popup_stop' && 'Click map to place a Temporary Diversion Stop.'}
+                      {gisToolMode === 'drop_junction' && 'Click map to place a Critical Junction.'}
+                      {gisToolMode === 'drop_roadworks' && 'Click map to place 9m-3yr Roadworks.'}
+                      {gisToolMode === 'drop_hazard' && 'Click map to drop a Geotagged Risk Hazard.'}
+                    </span>
+                  </div>
+                )}
+
+                {/* THE MAP ELEMENT (Continuously Mounted in DOM - 100% Size) */}
                 <div
                   ref={mapContainerRef}
-                  className="w-full h-full min-h-[300px] bg-slate-100"
+                  className="w-full h-full min-h-[300px] bg-slate-950"
                 />
               </div>
 
