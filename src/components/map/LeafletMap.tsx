@@ -73,6 +73,8 @@ export default function LeafletMap() {
     surveyorBaseLocation,
     setSurveyorBaseLocation,
     cleanRouteCoordinates,
+    isStartLocationModalOpen,
+    setIsStartLocationModalOpen,
     recordGpsBreadcrumb,
     isAutoCenterMap,
     setIsAutoCenterMap,
@@ -292,6 +294,14 @@ export default function LeafletMap() {
     const handleClick = (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
       const coord: [number, number] = [lat, lng];
+
+      // If user is confirming road starting location, allow clicking map to fine-tune exact road position
+      if (isStartLocationModalOpen) {
+        setUserGpsPosition(coord);
+        updateMapGpsMarker(coord, 10, true);
+        showToast(`📍 Start position adjusted to road stance [${lat.toFixed(4)}, ${lng.toFixed(4)}]`);
+        return;
+      }
 
       if (gisToolMode === 'draw_path') {
         addPathPoint(coord);
@@ -634,26 +644,48 @@ export default function LeafletMap() {
     }
   };
 
-  const updateMapGpsMarker = (posCoord: [number, number], accuracy: number = 15) => {
+  const updateMapGpsMarker = (posCoord: [number, number], accuracy: number = 15, isPulsing: boolean = false) => {
     if (!mapInstanceRef.current || !L) return;
-    if (!gpsMarkerRef.current) {
-      gpsMarkerRef.current = L.circleMarker(posCoord, {
-        radius: 9,
-        color: '#ffffff',
-        weight: 3,
-        fillColor: '#0284c7',
-        fillOpacity: 0.95,
-      }).addTo(mapInstanceRef.current);
+
+    if (isPulsing || isStartLocationModalOpen) {
+      if (gpsMarkerRef.current) {
+        mapInstanceRef.current.removeLayer(gpsMarkerRef.current);
+        gpsMarkerRef.current = null;
+      }
+      const pulseIcon = L.divIcon({
+        className: 'custom-gps-marker gps-pulse-ring',
+        html: `
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 text-slate-950 shadow-2xl border-2 border-white cursor-pointer ring-4 ring-emerald-400/40">
+            <span class="text-xs">🚌</span>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+      gpsMarkerRef.current = L.marker(posCoord, { icon: pulseIcon }).addTo(mapInstanceRef.current) as any;
     } else {
-      gpsMarkerRef.current.setLatLng(posCoord);
+      if (!gpsMarkerRef.current || !('setLatLng' in gpsMarkerRef.current)) {
+        if (gpsMarkerRef.current) {
+          mapInstanceRef.current.removeLayer(gpsMarkerRef.current);
+        }
+        gpsMarkerRef.current = L.circleMarker(posCoord, {
+          radius: 9,
+          color: '#ffffff',
+          weight: 3,
+          fillColor: '#0284c7',
+          fillOpacity: 0.95,
+        }).addTo(mapInstanceRef.current);
+      } else {
+        gpsMarkerRef.current.setLatLng(posCoord);
+      }
     }
 
     if (!accuracyCircleRef.current) {
       accuracyCircleRef.current = L.circle(posCoord, {
         radius: accuracy,
-        color: '#0284c7',
+        color: isPulsing || isStartLocationModalOpen ? '#10b981' : '#0284c7',
         weight: 1,
-        fillColor: '#0284c7',
+        fillColor: isPulsing || isStartLocationModalOpen ? '#10b981' : '#0284c7',
         fillOpacity: 0.15,
       }).addTo(mapInstanceRef.current);
     } else {
@@ -661,6 +693,45 @@ export default function LeafletMap() {
       accuracyCircleRef.current.setRadius(accuracy);
     }
   };
+
+  // When starting location calibration is active, auto-center on road position and pulse marker
+  useEffect(() => {
+    if (!isStartLocationModalOpen || !mapInstanceRef.current || !L) return;
+    
+    if (userGpsPosition) {
+      mapInstanceRef.current.setView(userGpsPosition, 16, { animate: true });
+      updateMapGpsMarker(userGpsPosition, 10, true);
+    } else if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          if (latitude >= 54.5) {
+            const coord: [number, number] = [latitude, longitude];
+            setUserGpsPosition(coord);
+            mapInstanceRef.current?.setView(coord, 16, { animate: true });
+            updateMapGpsMarker(coord, accuracy || 10, true);
+          } else {
+            const baseCoord = surveyorBaseLocation.coords;
+            setUserGpsPosition(baseCoord);
+            mapInstanceRef.current?.setView(baseCoord, 16, { animate: true });
+            updateMapGpsMarker(baseCoord, 15, true);
+          }
+        },
+        () => {
+          const baseCoord = surveyorBaseLocation.coords;
+          setUserGpsPosition(baseCoord);
+          mapInstanceRef.current?.setView(baseCoord, 16, { animate: true });
+          updateMapGpsMarker(baseCoord, 15, true);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    } else {
+      const baseCoord = surveyorBaseLocation.coords;
+      setUserGpsPosition(baseCoord);
+      mapInstanceRef.current.setView(baseCoord, 16, { animate: true });
+      updateMapGpsMarker(baseCoord, 15, true);
+    }
+  }, [isStartLocationModalOpen]);
 
   const handleSelectBaseDepot = (preset: SurveyorBasePreset) => {
     setSurveyorBaseLocation(preset);
