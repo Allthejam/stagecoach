@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useRouteContext } from '@/context/RouteContext';
+import { useRouteContext, SCOTTISH_BASE_PRESETS, SurveyorBasePreset } from '@/context/RouteContext';
 import { RouteStop, HazardObservation, StopType, GisToolMode } from '@/types/route';
 import { getRiskLevel } from '@/lib/calculations';
 import GisToolbar from './GisToolbar';
@@ -33,7 +33,12 @@ import {
   PenTool,
   MousePointer,
   Crosshair,
-  Locate
+  Locate,
+  Compass,
+  ChevronDown,
+  Check,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 
 let L: typeof import('leaflet') | null = null;
@@ -65,6 +70,9 @@ export default function LeafletMap() {
     setUserGpsPosition,
     showToast,
     surveyStatus,
+    surveyorBaseLocation,
+    setSurveyorBaseLocation,
+    cleanRouteCoordinates,
     recordGpsBreadcrumb,
     isAutoCenterMap,
     setIsAutoCenterMap,
@@ -74,6 +82,7 @@ export default function LeafletMap() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [isBasePickerOpen, setIsBasePickerOpen] = useState(false);
 
   const mapWrapperRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -182,7 +191,12 @@ export default function LeafletMap() {
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current || !L) return;
 
-    const initialCenter: [number, number] = currentRoute?.pathCoordinates[0] || [57.3295, -3.6062];
+    const firstCoord = currentRoute?.pathCoordinates?.[0];
+    const validRouteStart: [number, number] | null = (Array.isArray(firstCoord) && firstCoord[0] >= 54.5)
+      ? [firstCoord[0], firstCoord[1]]
+      : null;
+
+    const initialCenter: [number, number] = validRouteStart || surveyorBaseLocation?.coords || [57.1950, -3.8290];
     
     const map = L.map(mapContainerRef.current, {
       center: initialCenter,
@@ -201,6 +215,9 @@ export default function LeafletMap() {
     const tiles = L.tileLayer(tileUrl, {
       maxZoom: 19,
       attribution: '© Stagecoach GIS / OpenStreetMap',
+      noWrap: true,
+      keepBuffer: 4,
+      updateWhenIdle: false,
     }).addTo(map);
 
     currentTileLayerRef.current = tiles;
@@ -617,9 +634,54 @@ export default function LeafletMap() {
     }
   };
 
+  const updateMapGpsMarker = (posCoord: [number, number], accuracy: number = 15) => {
+    if (!mapInstanceRef.current || !L) return;
+    if (!gpsMarkerRef.current) {
+      gpsMarkerRef.current = L.circleMarker(posCoord, {
+        radius: 9,
+        color: '#ffffff',
+        weight: 3,
+        fillColor: '#0284c7',
+        fillOpacity: 0.95,
+      }).addTo(mapInstanceRef.current);
+    } else {
+      gpsMarkerRef.current.setLatLng(posCoord);
+    }
+
+    if (!accuracyCircleRef.current) {
+      accuracyCircleRef.current = L.circle(posCoord, {
+        radius: accuracy,
+        color: '#0284c7',
+        weight: 1,
+        fillColor: '#0284c7',
+        fillOpacity: 0.15,
+      }).addTo(mapInstanceRef.current);
+    } else {
+      accuracyCircleRef.current.setLatLng(posCoord);
+      accuracyCircleRef.current.setRadius(accuracy);
+    }
+  };
+
+  const handleSelectBaseDepot = (preset: SurveyorBasePreset) => {
+    setSurveyorBaseLocation(preset);
+    setUserGpsPosition(preset.coords);
+    if (mapInstanceRef.current && L) {
+      mapInstanceRef.current.setView(preset.coords, 14, { animate: true });
+      updateMapGpsMarker(preset.coords, 10);
+    }
+    setIsBasePickerOpen(false);
+    showToast(`📍 Centered to ${preset.name}`);
+  };
+
   const handleLocateMe = async () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      showToast('Geolocation is not supported by your browser.');
+      const fallbackCoord = surveyorBaseLocation.coords;
+      setUserGpsPosition(fallbackCoord);
+      if (mapInstanceRef.current && L) {
+        mapInstanceRef.current.setView(fallbackCoord, 14, { animate: true });
+        updateMapGpsMarker(fallbackCoord, 15);
+      }
+      showToast(`📍 Centered to Scottish Highlands Base (${surveyorBaseLocation.name})`);
       return;
     }
 
@@ -630,48 +692,41 @@ export default function LeafletMap() {
       (pos) => {
         setIsLocating(false);
         const { latitude, longitude, accuracy } = pos.coords;
-        const posCoord: [number, number] = [latitude, longitude];
-        setUserGpsPosition(posCoord);
 
-        if (mapInstanceRef.current && L) {
-          mapInstanceRef.current.setView(posCoord, 16, { animate: true });
+        // Desktop Broadband IP Detection:
+        // Broadband ISPs route desktop PCs via England gateways (Bolton, Manchester, London ~lat < 55.0)
+        const isEnglandIp = latitude < 55.0;
+        const isDesktopCoarse = accuracy && accuracy > 2000;
 
-          if (!gpsMarkerRef.current) {
-            gpsMarkerRef.current = L.circleMarker(posCoord, {
-              radius: 9,
-              color: '#ffffff',
-              weight: 3,
-              fillColor: '#0284c7',
-              fillOpacity: 0.95,
-            }).addTo(mapInstanceRef.current);
-          } else {
-            gpsMarkerRef.current.setLatLng(posCoord);
+        if (isEnglandIp || isDesktopCoarse) {
+          const highlandCoord = surveyorBaseLocation.coords;
+          setUserGpsPosition(highlandCoord);
+          if (mapInstanceRef.current && L) {
+            mapInstanceRef.current.setView(highlandCoord, 14, { animate: true });
+            updateMapGpsMarker(highlandCoord, 15);
           }
-
-          if (!accuracyCircleRef.current) {
-            accuracyCircleRef.current = L.circle(posCoord, {
-              radius: accuracy || 15,
-              color: '#0284c7',
-              weight: 1,
-              fillColor: '#0284c7',
-              fillOpacity: 0.15,
-            }).addTo(mapInstanceRef.current);
-          } else {
-            accuracyCircleRef.current.setLatLng(posCoord);
-            accuracyCircleRef.current.setRadius(accuracy || 15);
+          showToast(`🏴󠁧󠁢󠁳󠁣󠁴󠁿 Office PC broadband IP detected in England (${latitude.toFixed(2)}°N). Centered to your Scottish Highlands Base: ${surveyorBaseLocation.name}.`);
+        } else {
+          const posCoord: [number, number] = [latitude, longitude];
+          setUserGpsPosition(posCoord);
+          if (mapInstanceRef.current && L) {
+            mapInstanceRef.current.setView(posCoord, 16, { animate: true });
+            updateMapGpsMarker(posCoord, accuracy || 5);
           }
-          if (accuracy && accuracy > 5000) {
-            showToast(`PC Location (ISP Hub): [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy / 1000)}km). Note: Mobile phones in the field use real satellite GPS (2-5m accuracy).`);
-          } else {
-            showToast(`Located: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy || 5)}m)`);
-          }
+          showToast(`📍 Satellite GPS Locked: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy || 5)}m)`);
         }
       },
       (err) => {
         setIsLocating(false);
-        handleGpsError(err);
+        const highlandCoord = surveyorBaseLocation.coords;
+        setUserGpsPosition(highlandCoord);
+        if (mapInstanceRef.current && L) {
+          mapInstanceRef.current.setView(highlandCoord, 14, { animate: true });
+          updateMapGpsMarker(highlandCoord, 15);
+        }
+        showToast(`Centered to ${surveyorBaseLocation.name} (GPS Signal Offline)`);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   };
 
@@ -904,6 +959,16 @@ export default function LeafletMap() {
                   <RotateCcw className="w-3.5 h-3.5 text-red-600" />
                   <span>Start Over</span>
                 </button>
+
+                <button
+                  onClick={cleanRouteCoordinates}
+                  disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
+                  className="flex items-center justify-center space-x-1.5 p-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 font-semibold text-sky-800 transition disabled:opacity-40 col-span-2"
+                  title="Remove stray coordinates outside Scotland (e.g. Bolton/England IP jump)"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Sanitize Path (Highlands Only)</span>
+                </button>
               </div>
             </div>
 
@@ -1051,6 +1116,47 @@ export default function LeafletMap() {
                       <span>Fullscreen</span>
                     </button>
 
+                    {/* Highlands Base Depot Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsBasePickerOpen(!isBasePickerOpen)}
+                        className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur"
+                        title="Set Surveyor Base Depot (Aviemore / Scottish Highlands)"
+                      >
+                        <span className="text-sm">🏴󠁧󠁢󠁳󠁣󠁴󠁿</span>
+                        <span className="max-w-[130px] truncate">{surveyorBaseLocation.name.split(' ')[0]} Base</span>
+                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                      </button>
+
+                      {isBasePickerOpen && (
+                        <div className="absolute top-full left-0 mt-1.5 z-[10020] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-2 w-64 space-y-1 animate-in fade-in zoom-in-95">
+                          <div className="text-[10px] font-black uppercase text-amber-400 px-2 py-1 tracking-wider border-b border-slate-800 flex items-center justify-between">
+                            <span>Surveyor Base Depot</span>
+                            <span>🏴󠁧󠁢󠁳󠁣󠁴󠁿 Highlands</span>
+                          </div>
+                          {SCOTTISH_BASE_PRESETS.map((preset) => {
+                            const isSelected = surveyorBaseLocation.name === preset.name;
+                            return (
+                              <button
+                                key={preset.name}
+                                type="button"
+                                onClick={() => handleSelectBaseDepot(preset)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition ${
+                                  isSelected ? 'bg-stagecoach-blue text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="truncate">
+                                  <div className="font-bold">{preset.name}</div>
+                                  <div className="text-[9px] opacity-70 font-mono">[{preset.coords[0].toFixed(2)}, {preset.coords[1].toFixed(2)}]</div>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={handleLocateMe}
                       disabled={isLocating}
@@ -1080,8 +1186,49 @@ export default function LeafletMap() {
 
                 {/* 2. TOP-RIGHT CONTROLS */}
                 {isFullscreen ? (
-                  /* Fullscreen Top-Right Control Bar (Locate + Follow + Exit Fullscreen) */
+                  /* Fullscreen Top-Right Control Bar (Highlands Base + Locate + Follow + Exit Fullscreen) */
                   <div className="absolute top-4 right-4 z-[1000] flex items-center space-x-2">
+                    {/* Fullscreen Highlands Base Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsBasePickerOpen(!isBasePickerOpen)}
+                        className="bg-slate-900/90 backdrop-blur-md hover:bg-slate-800 text-white px-3.5 py-2 rounded-2xl shadow-xl border border-slate-700/80 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
+                        title="Set Surveyor Base Depot"
+                      >
+                        <span className="text-sm">🏴󠁧󠁢󠁳󠁣󠁴󠁿</span>
+                        <span className="hidden sm:inline">{surveyorBaseLocation.name.split(' ')[0]}</span>
+                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                      </button>
+
+                      {isBasePickerOpen && (
+                        <div className="absolute top-full right-0 mt-1.5 z-[10020] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-2 w-64 space-y-1 animate-in fade-in zoom-in-95">
+                          <div className="text-[10px] font-black uppercase text-amber-400 px-2 py-1 tracking-wider border-b border-slate-800 flex items-center justify-between">
+                            <span>Surveyor Base Depot</span>
+                            <span>🏴󠁧󠁢󠁳󠁣󠁴󠁿 Highlands</span>
+                          </div>
+                          {SCOTTISH_BASE_PRESETS.map((preset) => {
+                            const isSelected = surveyorBaseLocation.name === preset.name;
+                            return (
+                              <button
+                                key={preset.name}
+                                type="button"
+                                onClick={() => handleSelectBaseDepot(preset)}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition ${
+                                  isSelected ? 'bg-stagecoach-blue text-white font-bold' : 'text-slate-300 hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="truncate">
+                                  <div className="font-bold">{preset.name}</div>
+                                  <div className="text-[9px] opacity-70 font-mono">[{preset.coords[0].toFixed(2)}, {preset.coords[1].toFixed(2)}]</div>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0 ml-1" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={handleLocateMe}
                       disabled={isLocating}
@@ -1225,6 +1372,24 @@ export default function LeafletMap() {
                       title="Undo last path point"
                     >
                       <Undo2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={cleanRouteCoordinates}
+                      disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
+                      title="Sanitize Path (Remove stray England/Bolton coordinates)"
+                    >
+                      <Sparkles className="w-4 h-4 text-sky-400" />
+                    </button>
+
+                    <button
+                      onClick={clearPath}
+                      disabled={!currentRoute || currentRoute.pathCoordinates.length === 0}
+                      className="p-1.5 rounded-xl text-slate-300 hover:bg-amber-950/80 hover:text-amber-400 disabled:opacity-40 transition"
+                      title="Clear Path"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
 
                     <button

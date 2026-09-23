@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouteContext } from '@/context/RouteContext';
+import { useRouteContext, SCOTTISH_BASE_PRESETS, SurveyorBasePreset } from '@/context/RouteContext';
 import { usePwa } from '@/context/PwaContext';
 import { 
   MapPin, 
@@ -17,26 +17,12 @@ import {
   Laptop
 } from 'lucide-react';
 
-interface PresetDepot {
-  name: string;
-  region: string;
-  coords: [number, number];
-}
-
-const PRESET_DEPOTS: PresetDepot[] = [
-  { name: 'Aviemore Depot (Highlands)', region: 'Highlands & Islands', coords: [57.1950, -3.8290] },
-  { name: 'Inverness Bus Station Stance 1', region: 'Highlands & Islands', coords: [57.4810, -4.2247] },
-  { name: 'Glasgow Buchanan Bus Stn', region: 'West Scotland', coords: [55.8642, -4.2505] },
-  { name: 'Aberdeen Guild Street Depot', region: 'North Scotland', coords: [57.1436, -2.0982] },
-  { name: 'Manchester Depot / Station', region: 'Greater Manchester', coords: [53.4770, -2.2310] },
-  { name: 'London Victoria Operations HQ', region: 'London & South', coords: [51.4920, -0.1448] }
-];
-
 export default function StartLocationConfirmModal() {
   const {
     isStartLocationModalOpen,
     setIsStartLocationModalOpen,
     confirmAndStartLiveSurvey,
+    surveyorBaseLocation,
     currentRoute,
     showToast
   } = useRouteContext();
@@ -76,31 +62,39 @@ export default function StartLocationConfirmModal() {
       (pos) => {
         setIsLocating(false);
         const { latitude, longitude, accuracy: acc } = pos.coords;
-        setLat(latitude);
-        setLng(longitude);
-        setAccuracy(acc);
-        setIsManualOverride(false);
 
-        if (acc > 5000) {
-          showToast('Desktop Office PC location detected via ISP hub.');
+        // If broadband IP placed user in England / Bolton (lat < 55.0) or accuracy > 2km, prefill Scottish Highlands
+        if (latitude < 55.0 || (acc && acc > 2000)) {
+          setLat(surveyorBaseLocation?.coords[0] || 57.1950);
+          setLng(surveyorBaseLocation?.coords[1] || -3.8290);
+          setLocationName(surveyorBaseLocation?.name || 'Aviemore Depot Departure Stance 1');
+          setAccuracy(acc);
+          setIsManualOverride(false);
+          showToast(`🏴󠁧󠁢󠁳󠁣󠁴󠁿 Desktop PC broadband IP in England (${latitude.toFixed(2)}°N). Preset to ${surveyorBaseLocation?.name || 'Aviemore (Highlands)'}.`);
         } else {
+          setLat(latitude);
+          setLng(longitude);
+          setAccuracy(acc);
+          setIsManualOverride(false);
           showToast(`GPS Locked: ±${Math.round(acc)}m accuracy`);
         }
       },
       (err) => {
         setIsLocating(false);
-        console.warn('GPS detection failed:', err);
-        showToast('Could not automatically lock GPS. You can set starting coordinates manually below.');
+        setLat(surveyorBaseLocation?.coords[0] || 57.1950);
+        setLng(surveyorBaseLocation?.coords[1] || -3.8290);
+        setLocationName(surveyorBaseLocation?.name || 'Aviemore Depot Departure Stance 1');
+        showToast(`Preset to ${surveyorBaseLocation?.name || 'Aviemore (Highlands)'}`);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 8000,
         maximumAge: 0
       }
     );
   };
 
-  const handleApplyPreset = (preset: PresetDepot) => {
+  const handleApplyPreset = (preset: SurveyorBasePreset) => {
     setLat(preset.coords[0]);
     setLng(preset.coords[1]);
     setLocationName(preset.name);
@@ -266,10 +260,10 @@ export default function StartLocationConfirmModal() {
           {/* Quick Depot Presets (Essential for Office PC development & Depot Starters) */}
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-              🏢 Quick Preset Depots & Stations (Click to Jump)
+              🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scottish Highlands & Regional Depots (Click to Set)
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {PRESET_DEPOTS.map((p) => (
+              {SCOTTISH_BASE_PRESETS.map((p) => (
                 <button
                   key={p.name}
                   type="button"

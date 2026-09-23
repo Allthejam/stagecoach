@@ -1,4 +1,4 @@
-﻿@import "leaflet/dist/leaflet.css";
+@import "leaflet/dist/leaflet.css";
 
 @tailwind base;
 @tailwind components;
@@ -26,6 +26,39 @@ input, textarea, select {
 .custom-stop-marker, .custom-hazard-marker {
   background: transparent !important;
   border: none !important;
+}
+
+/* Fix Leaflet Tile Seams / Horizontal & Vertical Lines and Tailwind CSS img conflicts */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-container img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+  width: 256px !important;
+  height: 256px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.leaflet-tile {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.leaflet-tile-container {
+  overflow: hidden;
+}
+
+.leaflet-tile-pane {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
 }
 
 /* Hide scrollbar for clean horizontal scrolls */

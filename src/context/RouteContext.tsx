@@ -40,6 +40,21 @@ export interface ConfirmModalState {
   onConfirm: () => void;
 }
 
+export interface SurveyorBasePreset {
+  name: string;
+  region: string;
+  coords: [number, number];
+}
+
+export const SCOTTISH_BASE_PRESETS: SurveyorBasePreset[] = [
+  { name: 'Aviemore Depot (Highlands)', region: 'Highlands & Islands', coords: [57.1950, -3.8290] },
+  { name: 'Inverness Bus Station Stance 1', region: 'Highlands & Islands', coords: [57.4810, -4.2247] },
+  { name: 'Fort William Depot (Highlands)', region: 'Highlands & Islands', coords: [56.8198, -5.1052] },
+  { name: 'Perth Depot (East Scotland)', region: 'East Scotland', coords: [56.3950, -3.4308] },
+  { name: 'Aberdeen Guild Street', region: 'North Scotland', coords: [57.1436, -2.0982] },
+  { name: 'Glasgow Buchanan Bus Stn', region: 'West Scotland', coords: [55.8642, -4.2505] },
+];
+
 interface RouteContextType {
   routes: RouteAssessment[];
   filteredRoutes: RouteAssessment[];
@@ -50,6 +65,11 @@ interface RouteContextType {
   gisToolMode: GisToolMode;
   setGisToolMode: (mode: GisToolMode) => void;
   selectRoute: (id: string) => void;
+  
+  // Surveyor Base Depot (Desktop PC Geolocation Anchor)
+  surveyorBaseLocation: SurveyorBasePreset;
+  setSurveyorBaseLocation: (base: SurveyorBasePreset) => void;
+  cleanRouteCoordinates: () => void;
   
   // Live Survey Engine (Start, Pause, Resume, Stop)
   surveyStatus: SurveyStatus;
@@ -192,6 +212,33 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   const [isCategorisationWizardOpen, setIsCategorisationWizardOpen] = useState(false);
   const [isStartLocationModalOpen, setIsStartLocationModalOpen] = useState(false);
   const [isAutoCenterMap, setIsAutoCenterMap] = useState(true);
+
+  // Surveyor Base Depot (Aviemore / Highlands default for Desktop PC Geolocation)
+  const [surveyorBaseLocation, setSurveyorBaseLocationState] = useState<SurveyorBasePreset>(SCOTTISH_BASE_PRESETS[0]);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('stagecoach_surveyor_base');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.coords && Array.isArray(parsed.coords)) {
+            setSurveyorBaseLocationState(parsed);
+          }
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const setSurveyorBaseLocation = (preset: SurveyorBasePreset) => {
+    setSurveyorBaseLocationState(preset);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('stagecoach_surveyor_base', JSON.stringify(preset));
+      }
+    } catch (e) {}
+    showToast(`Surveyor Base set to ${preset.name}`);
+  };
 
   const currentPauseLogRef = useRef<SurveyPauseLog | null>(null);
   const lastRecordedCoordRef = useRef<[number, number] | null>(null);
@@ -495,10 +542,34 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         updateCurrentRoute((prev) => ({
           ...prev,
           pathCoordinates: [],
+          totalDistanceKm: 0,
+          estimatedRunningTimeMin: 0,
         }));
         showToast('Route path cleared');
       },
     });
+  };
+
+  const cleanRouteCoordinates = () => {
+    if (!currentRoute || currentRoute.pathCoordinates.length === 0) return;
+    // Strip out anomalous points (e.g. coordinates from Bolton / England with lat < 55.0 when operating in Scotland)
+    const cleaned = currentRoute.pathCoordinates.filter(([lat]) => lat >= 55.0);
+    const removedCount = currentRoute.pathCoordinates.length - cleaned.length;
+    updateCurrentRoute((prev) => {
+      const nextDistance = calculateTotalRouteDistanceKm(cleaned);
+      return {
+        ...prev,
+        pathCoordinates: cleaned,
+        totalDistanceKm: nextDistance,
+        estimatedRunningTimeMin: calculateEstimatedRunningTime(nextDistance, prev.stops, surveyAverageSpeedKph || 22),
+        updatedAt: new Date().toISOString()
+      };
+    });
+    if (removedCount > 0) {
+      showToast(`Removed ${removedCount} stray coordinate(s) outside Scotland`);
+    } else {
+      showToast('Path sanitized — all coordinates are valid');
+    }
   };
 
   const startOver = () => {
@@ -812,6 +883,9 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         setSelectedGarageFilter,
         availableRegionsForFilter,
         availableGaragesForFilter,
+        surveyorBaseLocation,
+        setSurveyorBaseLocation,
+        cleanRouteCoordinates,
         surveyStatus,
         surveyElapsedSeconds,
         surveyActiveSeconds,
