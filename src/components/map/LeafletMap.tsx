@@ -85,64 +85,61 @@ export default function LeafletMap() {
   const currentTileLayerRef = useRef<L.TileLayer | null>(null);
   const wakeLockSentinelRef = useRef<any>(null);
 
-  // Toggle Fullscreen with HTML5 API + CSS fallback
+  // Toggle Fullscreen with CSS viewport overlay + HTML5 API fallback
   const toggleFullscreen = async () => {
     const nextState = !isFullscreen;
     setIsFullscreen(nextState);
 
     try {
       if (nextState) {
-        const elem = mapWrapperRef.current;
-        if (elem && elem.requestFullscreen) {
-          await elem.requestFullscreen();
-        } else if (elem && (elem as any).webkitRequestFullscreen) {
-          await (elem as any).webkitRequestFullscreen();
+        if (mapWrapperRef.current?.requestFullscreen) {
+          await mapWrapperRef.current.requestFullscreen().catch(() => {});
         }
       } else {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
-          await (document as any).webkitExitFullscreen();
+        if (document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => {});
         }
       }
     } catch (err) {
-      console.warn('Native fullscreen request ignored, using CSS mode:', err);
+      // Ignore native fullscreen errors; CSS fullscreen overlay functions seamlessly
     }
   };
 
-  // Sync native fullscreen state (e.g. if user presses Escape key)
+  // Sync native fullscreen state (e.g. if user presses native Escape key)
   useEffect(() => {
     const handleNativeFullscreenChange = () => {
       const isNativeFull = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
-      setIsFullscreen(isNativeFull);
+      if (!isNativeFull && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleNativeFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleNativeFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.removeEventListener('fullscreenchange', handleNativeFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleNativeFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [isFullscreen]);
 
-  // Guarantee Leaflet recalculates dimensions across all layout frames on fullscreen toggle
+  // Lock body scroll when fullscreen is active
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const invalidate = () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize({ animate: false });
-      }
-    };
-    invalidate();
-    const t1 = setTimeout(invalidate, 50);
-    const t2 = setTimeout(invalidate, 150);
-    const t3 = setTimeout(invalidate, 300);
-    const t4 = setTimeout(invalidate, 600);
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
+      document.body.style.overflow = '';
     };
   }, [isFullscreen]);
 
@@ -192,7 +189,8 @@ export default function LeafletMap() {
       zoomControl: false,
     });
 
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    // Place zoom controls at bottom-right so top-left and top-right are dedicated for action bars
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     const tileUrl =
       tileLayer === 'satellite'
@@ -221,6 +219,20 @@ export default function LeafletMap() {
     };
   }, []);
 
+  // Continuous ResizeObserver to immediately resize Leaflet on any layout/fullscreen change
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    const ro = new ResizeObserver(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize({ animate: false });
+      }
+    });
+    ro.observe(mapContainerRef.current);
+    return () => {
+      ro.disconnect();
+    };
+  }, []);
+
   // Update Tile Layer
   useEffect(() => {
     if (!mapInstanceRef.current || !L) return;
@@ -240,13 +252,16 @@ export default function LeafletMap() {
     currentTileLayerRef.current = tiles;
   }, [tileLayer]);
 
-  // Recalculate dimensions smoothly on fullscreen toggle
+  // Recalculate dimensions smoothly across micro-frames on fullscreen toggle
   useEffect(() => {
     if (!mapInstanceRef.current) return;
+    const invalidate = () => mapInstanceRef.current?.invalidateSize({ animate: false });
+    invalidate();
     const timers = [
-      setTimeout(() => mapInstanceRef.current?.invalidateSize(), 50),
-      setTimeout(() => mapInstanceRef.current?.invalidateSize(), 150),
-      setTimeout(() => mapInstanceRef.current?.invalidateSize(), 300),
+      setTimeout(invalidate, 50),
+      setTimeout(invalidate, 150),
+      setTimeout(invalidate, 300),
+      setTimeout(invalidate, 600),
     ];
     return () => timers.forEach(clearTimeout);
   }, [isFullscreen]);
@@ -959,89 +974,80 @@ export default function LeafletMap() {
               ref={mapWrapperRef}
               className={`${
                 isFullscreen 
-                  ? 'fixed inset-0 z-[9999] bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden flex flex-col' 
-                  : 'bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
+                  ? 'fixed inset-0 z-[9990] bg-slate-950 w-screen h-screen p-0 m-0 overflow-hidden flex flex-col' 
+                  : 'bg-white p-3 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden'
               }`}
             >
               
-              {/* Floating Controls (Fullscreen, Locate Me & Auto-Center Follow) */}
-              <div className={`absolute z-30 flex flex-wrap items-center gap-2 ${
-                isFullscreen ? 'top-4 right-14' : 'top-5 left-5'
-              }`}>
-                <button
-                  onClick={toggleFullscreen}
-                  className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer"
-                  title={isFullscreen ? 'Exit Fullscreen' : 'Expand Map to Fullscreen'}
-                >
-                  {isFullscreen ? (
-                    <>
-                      <Minimize2 className="w-4 h-4 text-stagecoach-amber" />
+              {/* === FULLSCREEN VIEW HEADER === */}
+              {isFullscreen ? (
+                <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between z-30 shadow-md gap-3 flex-shrink-0">
+                  {/* Left: GIS Toolbar */}
+                  <div className="flex items-center">
+                    <GisToolbar onCenterMap={handleCenterMap} onToggleGps={handleToggleGps} />
+                  </div>
+
+                  {/* Right: GPS / Follow Controls & Exit Fullscreen */}
+                  <div className="flex items-center space-x-2.5">
+                    {/* Stats */}
+                    <div className="hidden sm:flex items-center space-x-3 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700 text-xs text-white">
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
+                        <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
+                      </div>
+                      <div className="h-5 w-px bg-slate-700"></div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
+                        <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
+                      </div>
+                      <div className="h-5 w-px bg-slate-700"></div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
+                        <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
+                      </div>
+                    </div>
+
+                    {/* Locate Me */}
+                    <button
+                      onClick={handleLocateMe}
+                      disabled={isLocating}
+                      className={`bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl shadow border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                        isLocating ? 'opacity-75' : ''
+                      }`}
+                      title="Center map on your current GPS location"
+                    >
+                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
+                      <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                    </button>
+
+                    {/* Follow Toggle */}
+                    <button
+                      onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
+                      className={`px-3 py-1.5 rounded-xl shadow border text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                        isAutoCenterMap 
+                          ? 'border-emerald-500/60 bg-emerald-950/60 text-emerald-300 ring-1 ring-emerald-500/40' 
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                      title="Keeps your GPS location strictly centered on screen as the vehicle moves"
+                    >
+                      <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
+                      <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
+                    </button>
+
+                    {/* Exit Fullscreen Button */}
+                    <button
+                      onClick={toggleFullscreen}
+                      className="bg-stagecoach-amber hover:bg-amber-600 text-slate-950 px-3.5 py-1.5 rounded-xl shadow-lg font-black text-xs flex items-center space-x-1.5 transition-all cursor-pointer"
+                      title="Exit Fullscreen (Esc)"
+                    >
+                      <Minimize2 className="w-4 h-4 text-slate-950" />
                       <span>Exit Fullscreen</span>
-                    </>
-                  ) : (
-                    <>
-                      <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
-                      <span>Fullscreen</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleLocateMe}
-                  disabled={isLocating}
-                  className={`bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                    isLocating ? 'opacity-75' : ''
-                  }`}
-                  title="Center map on your current GPS location"
-                >
-                  <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
-                  <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
-                </button>
-
-                <button
-                  onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
-                  className={`bg-slate-900/90 hover:bg-slate-800 px-3 py-2 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                    isAutoCenterMap 
-                      ? 'border-emerald-500/60 bg-slate-900 text-emerald-300 ring-1 ring-emerald-500/40' 
-                      : 'text-slate-400'
-                  }`}
-                  title="Keeps your GPS location strictly centered on screen as the vehicle moves"
-                >
-                  <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                  <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
-                </button>
-              </div>
-
-              {/* Floating Toolbar inside Fullscreen */}
-              {isFullscreen && (
-                <div className="absolute top-4 left-4 z-30 pointer-events-auto">
-                  <GisToolbar onCenterMap={handleCenterMap} onToggleGps={handleToggleGps} />
+                    </button>
+                  </div>
                 </div>
-              )}
-
-              {/* Floating Top HUD Stats */}
-              <div className={`absolute top-5 right-5 z-20 bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-2 rounded-xl shadow-lg border border-slate-700 flex items-center space-x-3 text-xs pointer-events-none ${
-                isFullscreen ? 'hidden sm:flex' : ''
-              }`}>
-                <div>
-                  <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
-                  <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
-                </div>
-                <div className="h-6 w-px bg-slate-700"></div>
-                <div>
-                  <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
-                  <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
-                </div>
-                <div className="h-6 w-px bg-slate-700"></div>
-                <div>
-                  <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
-                  <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
-                </div>
-              </div>
-
-              {/* Mode Prompt Strip (in Card view only) */}
-              {!isFullscreen && (
-                <div className="bg-slate-100 text-slate-700 text-xs px-3.5 py-2 rounded-xl mb-2 flex items-center justify-between border border-slate-200">
+              ) : (
+                /* === CARD VIEW MODE PROMPT STRIP (Cleanly on top with zero overlapping buttons!) === */
+                <div className="bg-slate-100 text-slate-700 text-xs px-3.5 py-2 rounded-xl mb-2.5 flex items-center justify-between border border-slate-200">
                   <span className="font-semibold flex items-center space-x-2">
                     <Info className="w-4 h-4 text-stagecoach-blue flex-shrink-0" />
                     <span>
@@ -1056,22 +1062,84 @@ export default function LeafletMap() {
                   </span>
                   <button
                     onClick={() => setGisToolMode('browse')}
-                    className="text-[11px] text-stagecoach-blue font-bold hover:underline cursor-pointer"
+                    className="text-[11px] text-stagecoach-blue font-bold hover:underline cursor-pointer ml-2"
                   >
                     Reset
                   </button>
                 </div>
               )}
 
-              {/* THE MAP ELEMENT (Continuously Mounted in DOM) */}
-              <div
-                ref={mapContainerRef}
-                className={`w-full z-10 ${
-                  isFullscreen 
-                    ? 'w-full h-full flex-1 min-h-0' 
-                    : 'h-[580px] sm:h-[620px] rounded-xl overflow-hidden'
-                }`}
-              />
+              {/* Map Container Viewport */}
+              <div className={`relative ${
+                isFullscreen 
+                  ? 'flex-1 w-full h-full min-h-0' 
+                  : 'w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-slate-200 shadow-inner'
+              }`}>
+                {/* Floating Map Actions (Only in Card View, positioned cleanly at top-3 left-3 over the map canvas) */}
+                {!isFullscreen && (
+                  <>
+                    <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 pointer-events-auto">
+                      <button
+                        onClick={toggleFullscreen}
+                        className="bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur"
+                        title="Expand Map to Fullscreen"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5 text-stagecoach-amber" />
+                        <span>Fullscreen</span>
+                      </button>
+
+                      <button
+                        onClick={handleLocateMe}
+                        disabled={isLocating}
+                        className={`bg-slate-900/90 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
+                          isLocating ? 'opacity-75' : ''
+                        }`}
+                        title="Center map on your current GPS location"
+                      >
+                        <Locate className={`w-3.5 h-3.5 ${isLocating ? 'text-stagecoach-amber animate-spin' : 'text-sky-400'}`} />
+                        <span>{isLocating ? 'Locating...' : 'Locate Me'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsAutoCenterMap(!isAutoCenterMap)}
+                        className={`bg-slate-900/90 hover:bg-slate-800 px-3 py-1.5 rounded-xl shadow-xl border border-slate-700 text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer backdrop-blur ${
+                          isAutoCenterMap 
+                            ? 'border-emerald-500/60 bg-slate-900 text-emerald-300 ring-1 ring-emerald-500/40' 
+                            : 'text-slate-400'
+                        }`}
+                        title="Keeps your GPS location strictly centered on screen as the vehicle moves"
+                      >
+                        <Crosshair className={`w-3.5 h-3.5 ${isAutoCenterMap ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
+                        <span>Follow: {isAutoCenterMap ? 'ON' : 'OFF'}</span>
+                      </button>
+                    </div>
+
+                    {/* Floating Top HUD Stats (at top-3 right-3 over map canvas) */}
+                    <div className="absolute top-3 right-3 z-[1000] bg-slate-900/90 backdrop-blur text-white px-3 py-1.5 rounded-xl shadow-lg border border-slate-700 flex items-center space-x-3 text-xs pointer-events-none">
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Distance</span>
+                        <strong className="font-black text-amber-400">{currentRoute?.totalDistanceKm} km</strong>
+                      </div>
+                      <div className="h-5 w-px bg-slate-700"></div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Nodes</span>
+                        <strong className="font-black text-white">{currentRoute?.pathCoordinates.length || 0}</strong>
+                      </div>
+                      <div className="h-5 w-px bg-slate-700"></div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 block uppercase font-mono">Stops</span>
+                        <strong className="font-black text-blue-400">{currentRoute?.stops.length || 0}</strong>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* THE MAP ELEMENT (Continuously Mounted in DOM) */}
+                <div
+                  ref={mapContainerRef}
+                  className="w-full h-full min-h-[300px] bg-slate-100"
+                />
+              </div>
 
               {/* Bottom Legend (in Card view only) */}
               {!isFullscreen && (
