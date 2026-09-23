@@ -71,8 +71,12 @@ interface RouteContextType {
   setIsSetRiskModalOpen: (open: boolean) => void;
   isCategorisationWizardOpen: boolean;
   setIsCategorisationWizardOpen: (open: boolean) => void;
+  isStartLocationModalOpen: boolean;
+  setIsStartLocationModalOpen: (open: boolean) => void;
   isAutoCenterMap: boolean;
   setIsAutoCenterMap: (autoCenter: boolean) => void;
+  openStartSurveyModal: () => void;
+  confirmAndStartLiveSurvey: (startCoords: [number, number], startLocationName?: string) => void;
   startLiveSurvey: () => void;
   pauseLiveSurvey: (reason?: SurveyPauseReason | string) => void;
   resumeLiveSurvey: () => void;
@@ -186,6 +190,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
   const [isSurveySummaryModalOpen, setIsSurveySummaryModalOpen] = useState(false);
   const [isSetRiskModalOpen, setIsSetRiskModalOpen] = useState(false);
   const [isCategorisationWizardOpen, setIsCategorisationWizardOpen] = useState(false);
+  const [isStartLocationModalOpen, setIsStartLocationModalOpen] = useState(false);
   const [isAutoCenterMap, setIsAutoCenterMap] = useState(true);
 
   const currentPauseLogRef = useRef<SurveyPauseLog | null>(null);
@@ -516,11 +521,48 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const startLiveSurvey = () => {
+  const openStartSurveyModal = () => {
+    setIsStartLocationModalOpen(true);
+  };
+
+  const confirmAndStartLiveSurvey = (startCoords: [number, number], startLocationName?: string) => {
+    setUserGpsPosition(startCoords);
+    lastRecordedCoordRef.current = startCoords;
     setSurveyStatus('recording');
     setIsGpsTracking(true);
     setGisToolMode('browse');
-    showToast('Live RRA Survey Started — Active Moving Speed Recording');
+    setIsStartLocationModalOpen(false);
+
+    // If starting a fresh survey and route has no points or is empty, record start point
+    setRoutes((prev) =>
+      prev.map((r) => {
+        if (r.id !== currentRouteId) return r;
+        if (r.pathCoordinates.length === 0) {
+          return {
+            ...r,
+            pathCoordinates: [startCoords],
+            stops: r.stops.length === 0 ? [{
+              id: 'stop_start_' + Date.now(),
+              name: startLocationName || 'Survey Starting Point',
+              stopType: 'main_stop_time_point',
+              lat: startCoords[0],
+              lng: startCoords[1],
+              dwellMinutes: 1,
+              order: 1,
+              notes: 'Verified Survey Departure Stance'
+            }] : r.stops
+          };
+        }
+        return r;
+      })
+    );
+
+    showToast(`✅ Survey Started at [${startCoords[0].toFixed(4)}, ${startCoords[1].toFixed(4)}]`);
+  };
+
+  const startLiveSurvey = () => {
+    // Open verification & confirmation dialog so surveyor can confirm or adjust before timer starts
+    setIsStartLocationModalOpen(true);
   };
 
   const pauseLiveSurvey = (reason?: SurveyPauseReason | string) => {
@@ -789,8 +831,12 @@ export function RouteProvider({ children }: { children: ReactNode }) {
         setIsSetRiskModalOpen,
         isCategorisationWizardOpen,
         setIsCategorisationWizardOpen,
+        isStartLocationModalOpen,
+        setIsStartLocationModalOpen,
         isAutoCenterMap,
         setIsAutoCenterMap,
+        openStartSurveyModal,
+        confirmAndStartLiveSurvey,
         startLiveSurvey,
         pauseLiveSurvey,
         resumeLiveSurvey,

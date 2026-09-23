@@ -14,6 +14,7 @@ import SurveyPauseModal from './SurveyPauseModal';
 import SurveySummaryModal from './SurveySummaryModal';
 import QuickSetRiskModal from './QuickSetRiskModal';
 import StopCategorisationWizard from './StopCategorisationWizard';
+import StartLocationConfirmModal from './StartLocationConfirmModal';
 import { usePwa } from '@/context/PwaContext';
 import { 
   Maximize2, 
@@ -1283,6 +1284,7 @@ export default function LeafletMap() {
       <SurveySummaryModal />
       <QuickSetRiskModal />
       <StopCategorisationWizard />
+      <StartLocationConfirmModal />
     </>
   );
 }

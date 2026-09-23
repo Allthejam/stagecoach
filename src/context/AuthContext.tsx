@@ -355,93 +355,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUsersList();
   }, []);
 
-  // Listen to Firebase Auth state
+  // Listen to Firebase Auth state with immediate loading resolution
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
       setLoading(false);
       return;
     }
 
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      clearTimeout(safetyTimer);
       setUser(currentUser);
-      if (currentUser) {
-        // Load user record from Firestore 'users' collection
-        if (db) {
-          try {
-            const userRef = doc(db, 'users', currentUser.uid);
-            const userDoc = await getDoc(userRef);
-            
-            if (userDoc.exists()) {
-              const userData = userDoc.data() as UserProfile;
-              setOperatorProfile((prev) => {
-                const merged: OperatorProfile = {
-                  ...prev,
-                  ...userData,
-                  uid: currentUser.uid,
-                  email: currentUser.email || userData.email || prev.email,
-                  displayName: userData.displayName || prev.displayName,
-                  role: userData.role || 'master_admin'
-                };
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
-                }
-                return merged;
-              });
-            } else {
-              // Create initial profile for this user in 'users' collection (defaulting to master_admin for initial admin/owner)
-              const initialUser: UserProfile = {
+      setLoading(false);
+
+      if (currentUser && db) {
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as UserProfile;
+            setOperatorProfile((prev) => {
+              const merged: OperatorProfile = {
+                ...prev,
+                ...userData,
                 uid: currentUser.uid,
-                email: currentUser.email || 'operator@stagecoach.co.uk',
-                displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Stagecoach Admin',
-                role: 'master_admin',
-                region: 'All Regions',
-                depot: 'Main Depot',
-                phone: '+44 (0) 141 555 0199',
-                assessorNumber: 'SC-ADM-01',
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                lastLoginAt: new Date().toISOString()
+                email: currentUser.email || userData.email || prev.email,
+                displayName: userData.displayName || prev.displayName,
+                role: userData.role || 'master_admin'
               };
-
-              await setDoc(userRef, initialUser, { merge: true });
-
-              setOperatorProfile((prev) => {
-                const merged: OperatorProfile = {
-                  ...prev,
-                  ...initialUser
-                };
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
-                }
-                return merged;
-              });
-            }
-
-            // Also load any custom emergency contacts / fleet overrides
-            const opRef = doc(db, 'operators', currentUser.uid);
-            const opDoc = await getDoc(opRef);
-            if (opDoc.exists()) {
-              const opData = opDoc.data();
-              if (opData.emergencyContacts || opData.fleetDefaults) {
-                setOperatorProfile((prev) => ({
-                  ...prev,
-                  emergencyContacts: opData.emergencyContacts || prev.emergencyContacts,
-                  fleetDefaults: opData.fleetDefaults || prev.fleetDefaults
-                }));
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
               }
-            }
+              return merged;
+            });
+          } else {
+            const initialUser: UserProfile = {
+              uid: currentUser.uid,
+              email: currentUser.email || 'operator@stagecoach.co.uk',
+              displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Stagecoach Admin',
+              role: 'master_admin',
+              region: 'All Regions',
+              depot: 'Main Depot',
+              phone: '+44 (0) 141 555 0199',
+              assessorNumber: 'SC-ADM-01',
+              status: 'active',
+              createdAt: new Date().toISOString(),
+              lastLoginAt: new Date().toISOString()
+            };
 
-            // Refresh team users list
-            await refreshUsersList();
-          } catch (err) {
-            console.warn('Could not fetch user record from Firestore', err);
+            await setDoc(userRef, initialUser, { merge: true });
+
+            setOperatorProfile((prev) => {
+              const merged: OperatorProfile = {
+                ...prev,
+                ...initialUser
+              };
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(merged));
+              }
+              return merged;
+            });
           }
+
+          const opRef = doc(db, 'operators', currentUser.uid);
+          const opDoc = await getDoc(opRef);
+          if (opDoc.exists()) {
+            const opData = opDoc.data();
+            if (opData.emergencyContacts || opData.fleetDefaults) {
+              setOperatorProfile((prev) => ({
+                ...prev,
+                emergencyContacts: opData.emergencyContacts || prev.emergencyContacts,
+                fleetDefaults: opData.fleetDefaults || prev.fleetDefaults
+              }));
+            }
+          }
+
+          await refreshUsersList();
+        } catch (err) {
+          console.warn('Could not fetch user record from Firestore', err);
         }
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   const updateOperatorProfile = async (updates: Partial<OperatorProfile>) => {
