@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouteContext } from '@/context/RouteContext';
+import { usePwa } from '@/context/PwaContext';
 import { HazardCategory } from '@/types/route';
 import { 
   AlertTriangle, 
@@ -14,7 +15,10 @@ import {
   Check, 
   Layers,
   Sparkles,
-  Move
+  Move,
+  RefreshCw,
+  FolderOpen,
+  Eye
 } from 'lucide-react';
 
 const CATEGORIES: HazardCategory[] = [
@@ -37,8 +41,11 @@ export default function QuickSetRiskModal() {
     setIsSetRiskModalOpen, 
     userGpsPosition, 
     quickSaveRiskHazard,
-    currentRoute
+    currentRoute,
+    showToast
   } = useRouteContext();
+
+  const { cameraPermission, requestCameraPermission } = usePwa();
 
   const [category, setCategory] = useState<HazardCategory>('Blind Corner / Narrow Carriageway');
   const [riskTitle, setRiskTitle] = useState('');
@@ -49,10 +56,113 @@ export default function QuickSetRiskModal() {
   const [customLng, setCustomLng] = useState<number>(-3.6062);
   const [isAdjustingCoords, setIsAdjustingCoords] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  // Live in-app camera viewfinder states
+  const [isLiveCameraActive, setIsLiveCameraActive] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // Sync GPS position when opened
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  // Native input refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Stop camera helper
+  const stopLiveCamera = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsLiveCameraActive(false);
+    setCameraError(null);
+  }, []);
+
+  // Start / restart live camera stream
+  const startLiveCamera = useCallback(async (mode: 'environment' | 'user' = facingMode) => {
+    stopLiveCamera();
+    setCameraError(null);
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera video streaming is not supported on this browser. Use native camera or file upload.');
+      return;
+    }
+
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: mode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      mediaStreamRef.current = stream;
+      setIsLiveCameraActive(true);
+      setFacingMode(mode);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((e) => console.warn('Video play error:', e));
+      }
+    } catch (err: any) {
+      console.warn('Live camera access error:', err);
+      setCameraError(
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? 'Camera permission was denied. Please allow camera access in your browser settings.'
+          : 'Could not access the selected camera lens. Please try native camera or upload.'
+      );
+    }
+  }, [facingMode, stopLiveCamera]);
+
+  // Flip between Rear ('environment') and Front ('user') lenses
+  const handleFlipCamera = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    startLiveCamera(nextMode);
+  };
+
+  // Capture still snapshot from live video stream
+  const handleSnapPhoto = () => {
+    if (!videoRef.current || photos.length >= 3) return;
+
+    const video = videoRef.current;
+    let canvas = canvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvasRef.current = canvas;
+    }
+
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw video frame
+    ctx.drawImage(video, 0, 0, width, height);
+
+    // Compress to JPEG format
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    setPhotos((prev) => {
+      if (prev.length >= 3) return prev;
+      return [...prev, photoDataUrl];
+    });
+
+    showToast(`Photo #${photos.length + 1} captured!`);
+
+    // If reached 3 photos, automatically close live viewfinder
+    if (photos.length + 1 >= 3) {
+      stopLiveCamera();
+    }
+  };
+
+  // Sync GPS position when opened and clean up camera when closed
   useEffect(() => {
     if (isSetRiskModalOpen) {
       if (userGpsPosition) {
@@ -63,18 +173,22 @@ export default function QuickSetRiskModal() {
         setCustomLat(last[0]);
         setCustomLng(last[1]);
       }
-      // Reset form
       setRiskTitle('');
       setRiskDescription('');
       setControlMeasure('');
       setPhotos([]);
       setIsAdjustingCoords(false);
+      stopLiveCamera();
+    } else {
+      stopLiveCamera();
     }
-  }, [isSetRiskModalOpen, userGpsPosition, currentRoute]);
+    return () => {
+      stopLiveCamera();
+    };
+  }, [isSetRiskModalOpen, userGpsPosition, currentRoute, stopLiveCamera]);
 
-  if (!isSetRiskModalOpen) return null;
-
-  const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle storage file uploads & native camera fallback
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -91,7 +205,6 @@ export default function QuickSetRiskModal() {
       };
       reader.readAsDataURL(file);
     });
-    // Reset file input
     e.target.value = '';
   };
 
@@ -103,7 +216,7 @@ export default function QuickSetRiskModal() {
     e.preventDefault();
 
     if (!riskDescription.trim()) {
-      alert('Please enter a description for this risk event.');
+      alert('Please enter a description for this hazard/risk event.');
       return;
     }
 
@@ -111,6 +224,8 @@ export default function QuickSetRiskModal() {
       alert('Please enter the mandatory control measure to mitigate this risk.');
       return;
     }
+
+    stopLiveCamera();
 
     quickSaveRiskHazard({
       title: riskTitle.trim() || category,
@@ -126,12 +241,14 @@ export default function QuickSetRiskModal() {
     setIsSetRiskModalOpen(false);
   };
 
+  if (!isSetRiskModalOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto flex flex-col max-h-[92vh]">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-950 via-slate-900 to-slate-900 p-5 border-b border-slate-800 flex items-start justify-between">
+        <div className="bg-gradient-to-r from-red-950 via-slate-900 to-slate-950 p-5 border-b border-slate-800 flex items-start justify-between shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-6 h-6" />
@@ -152,15 +269,18 @@ export default function QuickSetRiskModal() {
           </div>
           <button
             type="button"
-            onClick={() => setIsSetRiskModalOpen(false)}
-            className="text-slate-400 hover:text-white p-1 rounded-lg"
+            onClick={() => {
+              stopLiveCamera();
+              setIsSetRiskModalOpen(false);
+            }}
+            className="text-slate-400 hover:text-white p-1 rounded-lg transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSave} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSave} className="p-5 space-y-4 overflow-y-auto flex-1">
           
           {/* Category Dropdown */}
           <div>
@@ -189,10 +309,9 @@ export default function QuickSetRiskModal() {
               type="text"
               value={riskTitle}
               onChange={(e) => setRiskTitle(e.target.value)}
-              placeholder={`e.g. ${category} near School Entrance`}
+              placeholder={`e.g. ${category} near Milepost 3`}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
-            >
-            </input>
+            />
           </div>
 
           {/* BOX 1: What is the Risk? */}
@@ -209,7 +328,7 @@ export default function QuickSetRiskModal() {
               rows={3}
               value={riskDescription}
               onChange={(e) => setRiskDescription(e.target.value)}
-              placeholder="Describe the physical hazard, blind sightlines, road narrowing, overhanging obstacles, or pedestrian conflict points..."
+              placeholder="Describe the physical hazard, blind sightlines, road narrowing, overhanging foliage, or pedestrian conflict points..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 leading-relaxed resize-none"
             />
           </div>
@@ -229,30 +348,30 @@ export default function QuickSetRiskModal() {
               rows={3}
               value={controlMeasure}
               onChange={(e) => setControlMeasure(e.target.value)}
-              placeholder="Specify the exact mitigation required (e.g. Reduce speed to 10mph, sound horn, mirror sweeps, give-way priority to oncoming double-deckers)..."
+              placeholder="Specify the exact mitigation required (e.g. Reduce speed to 10mph, sound horn, mirror checks, priority give-way to oncoming double-deckers)..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 leading-relaxed resize-none"
             />
           </div>
 
-          {/* PHOTO ATTACHMENTS (Up to 3 Photos) */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+          {/* PHOTO EVIDENCE SECTION: 2 SEPARATE FUNCTIONS (1. CAMERA ACCESS vs 2. DEVICE STORAGE) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <label className="text-xs font-black text-slate-200 flex items-center space-x-1.5">
                 <Camera className="w-4 h-4 text-stagecoach-amber" />
-                <span>Attach Photos ({photos.length}/3)</span>
+                <span>Hazard Evidence Photos ({photos.length}/3)</span>
               </label>
               <span className="text-[10px] text-slate-400">
-                Camera or Gallery
+                Camera (Front & Back) + Device Storage
               </span>
             </div>
 
-            {/* Hidden file inputs */}
+            {/* Hidden native inputs */}
             <input
-              ref={cameraInputRef}
+              ref={nativeCameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"
-              onChange={handleImageCapture}
+              onChange={handleImageUpload}
               className="hidden"
             />
             <input
@@ -260,9 +379,84 @@ export default function QuickSetRiskModal() {
               type="file"
               accept="image/*"
               multiple
-              onChange={handleImageCapture}
+              onChange={handleImageUpload}
               className="hidden"
             />
+
+            {/* Live Camera Viewfinder Overlay */}
+            {isLiveCameraActive && (
+              <div className="relative rounded-2xl overflow-hidden border-2 border-amber-500 bg-black shadow-2xl p-1 animate-in fade-in zoom-in-95 duration-150">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-video sm:aspect-[4/3] object-cover rounded-xl bg-black"
+                />
+
+                {/* Viewfinder Overlay Crosshair */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="w-32 h-32 border border-white/40 rounded-xl relative">
+                    <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-amber-400"></div>
+                    <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-amber-400"></div>
+                    <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-amber-400"></div>
+                    <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-amber-400"></div>
+                  </div>
+                </div>
+
+                {/* Camera Lens Indicator */}
+                <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-full border border-white/20 flex items-center space-x-1">
+                  <span>📷 {facingMode === 'environment' ? 'Back Camera (Road View)' : 'Front Camera (Cab View)'}</span>
+                </div>
+
+                {/* Camera Controls Floating Bar */}
+                <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={handleFlipCamera}
+                    className="px-3 py-2 bg-slate-900/90 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 shadow-lg flex items-center space-x-1.5 cursor-pointer"
+                    title="Switch between front and back cameras"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Flip Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSnapPhoto}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-xl flex items-center space-x-1.5 cursor-pointer animate-pulse"
+                  >
+                    <Camera className="w-4 h-4 fill-slate-950" />
+                    <span>Snap Photo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={stopLiveCamera}
+                    className="px-3 py-2 bg-red-950/80 hover:bg-red-900 text-white text-xs font-bold rounded-xl border border-red-800 shadow-lg cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Camera Error / Troubleshooting Notice */}
+            {cameraError && (
+              <div className="p-3 bg-amber-950/60 border border-amber-500/40 rounded-xl text-xs text-amber-200 flex items-start space-x-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p>{cameraError}</p>
+                  <button
+                    type="button"
+                    onClick={() => nativeCameraInputRef.current?.click()}
+                    className="mt-1.5 underline font-bold text-amber-300 hover:text-white block"
+                  >
+                    Try Native Device Camera App instead ➡️
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Photo Thumbnails */}
             {photos.length > 0 && (
@@ -279,33 +473,71 @@ export default function QuickSetRiskModal() {
                       <Trash2 className="w-3 h-3" />
                     </button>
                     <span className="absolute bottom-1 left-1 bg-black/70 text-[9px] text-white px-1.5 py-0.5 rounded font-bold">
-                      #{idx + 1}
+                      Photo #{idx + 1}
                     </span>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Camera / Upload Action Buttons */}
-            {photos.length < 3 && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="py-2.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-amber-400" />
-                  <span>Take Camera Photo</span>
-                </button>
+            {/* Action Buttons: 2 Distinct Functions (1. Camera vs 2. Storage) */}
+            {photos.length < 3 && !isLiveCameraActive && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                
+                {/* Function 1: Live Camera Access with Front/Back switching */}
+                <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                  <div>
+                    <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-400">
+                      <Camera className="w-4 h-4" />
+                      <span>1. Camera Lens Access</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Live viewfinder with front and rear lens switching
+                    </p>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer"
-                >
-                  <Upload className="w-4 h-4 text-slate-400" />
-                  <span>Choose Photo</span>
-                </button>
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => startLiveCamera('environment')}
+                      className="py-2 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow transition flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Live Viewfinder</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => nativeCameraInputRef.current?.click()}
+                      className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg border border-slate-700 transition flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <span>Device Camera</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Function 2: Device Storage & Gallery Upload */}
+                <div className="bg-slate-900 border border-sky-500/30 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                  <div>
+                    <div className="flex items-center space-x-1.5 text-xs font-bold text-sky-400">
+                      <FolderOpen className="w-4 h-4" />
+                      <span>2. Device Storage & Gallery</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Select existing hazard photos or diagrams from storage
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg shadow transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Browse Storage / Gallery</span>
+                  </button>
+                </div>
+
               </div>
             )}
           </div>
@@ -315,7 +547,7 @@ export default function QuickSetRiskModal() {
             <button
               type="button"
               onClick={() => setIsAdjustingCoords(!isAdjustingCoords)}
-              className="w-full flex items-center justify-between text-slate-400 hover:text-white transition"
+              className="w-full flex items-center justify-between text-slate-400 hover:text-white transition cursor-pointer"
             >
               <span className="flex items-center space-x-1.5 font-semibold">
                 <MapPin className="w-3.5 h-3.5 text-red-400" />
@@ -368,7 +600,10 @@ export default function QuickSetRiskModal() {
           <div className="pt-2 flex items-center justify-end space-x-3">
             <button
               type="button"
-              onClick={() => setIsSetRiskModalOpen(false)}
+              onClick={() => {
+                stopLiveCamera();
+                setIsSetRiskModalOpen(false);
+              }}
               className="px-4 py-2.5 text-xs text-slate-400 hover:text-white font-semibold transition"
             >
               Cancel

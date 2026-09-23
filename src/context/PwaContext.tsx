@@ -29,13 +29,15 @@ interface PwaContextType {
 
   // Permissions Manager
   gpsPermission: PermissionState;
+  cameraPermission: PermissionState;
   notificationPermission: PermissionState;
   isPermissionsModalOpen: boolean;
   openPermissionsModal: () => void;
   closePermissionsModal: () => void;
   requestGpsPermission: () => Promise<{ success: boolean; lat?: number; lng?: number; error?: string }>;
+  requestCameraPermission: () => Promise<{ success: boolean; error?: string }>;
   requestNotificationPermission: () => Promise<{ success: boolean; status: PermissionState }>;
-  requestAllPermissions: () => Promise<{ gps: boolean; notifications: boolean }>;
+  requestAllPermissions: () => Promise<{ gps: boolean; camera: boolean; notifications: boolean }>;
 }
 
 const PwaContext = createContext<PwaContextType | undefined>(undefined);
@@ -52,6 +54,7 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
 
   // Permission States
   const [gpsPermission, setGpsPermission] = useState<PermissionState>('prompt');
+  const [cameraPermission, setCameraPermission] = useState<PermissionState>('prompt');
   const [notificationPermission, setNotificationPermission] = useState<PermissionState>('prompt');
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
 
@@ -149,6 +152,23 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         setGpsPermission('unsupported');
       }
 
+      // Check Camera
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+        if ('permissions' in navigator && navigator.permissions.query) {
+          try {
+            const camStatus = await navigator.permissions.query({ name: 'camera' as any });
+            setCameraPermission(camStatus.state as PermissionState);
+            camStatus.onchange = () => {
+              setCameraPermission(camStatus.state as PermissionState);
+            };
+          } catch (e) {
+            // fallback
+          }
+        }
+      } else {
+        setCameraPermission('unsupported');
+      }
+
       // Check Notification
       if (typeof window !== 'undefined' && 'Notification' in window) {
         setNotificationPermission(Notification.permission as PermissionState);
@@ -215,6 +235,24 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const requestCameraPermission = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraPermission('unsupported');
+      return { success: false, error: 'Camera API not supported on this device/browser.' };
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((track) => track.stop());
+      setCameraPermission('granted');
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Camera permission error:', err);
+      setCameraPermission('denied');
+      return { success: false, error: err?.message || 'Camera permission denied' };
+    }
+  }, []);
+
   const requestNotificationPermission = useCallback(async (): Promise<{ success: boolean; status: PermissionState }> => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       setNotificationPermission('unsupported');
@@ -232,14 +270,15 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const requestAllPermissions = useCallback(async (): Promise<{ gps: boolean; notifications: boolean }> => {
+  const requestAllPermissions = useCallback(async (): Promise<{ gps: boolean; camera: boolean; notifications: boolean }> => {
     const gpsRes = await requestGpsPermission();
+    const camRes = await requestCameraPermission();
     const notifRes = await requestNotificationPermission();
     try {
       localStorage.setItem('stagecoach_permissions_prompted', 'true');
     } catch {}
-    return { gps: gpsRes.success, notifications: notifRes.success };
-  }, [requestGpsPermission, requestNotificationPermission]);
+    return { gps: gpsRes.success, camera: camRes.success, notifications: notifRes.success };
+  }, [requestGpsPermission, requestCameraPermission, requestNotificationPermission]);
 
   const dismissBanner = useCallback(() => {
     setBannerDismissed(true);
@@ -296,11 +335,13 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         bannerDismissed,
         dismissBanner,
         gpsPermission,
+        cameraPermission,
         notificationPermission,
         isPermissionsModalOpen,
         openPermissionsModal,
         closePermissionsModal,
         requestGpsPermission,
+        requestCameraPermission,
         requestNotificationPermission,
         requestAllPermissions,
       }}

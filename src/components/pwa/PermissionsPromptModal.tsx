@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from 'react';
 import { usePwa } from '@/context/PwaContext';
@@ -20,9 +20,11 @@ export default function PermissionsPromptModal() {
     isPermissionsModalOpen, 
     closePermissionsModal, 
     gpsPermission, 
+    cameraPermission,
     notificationPermission, 
     requestAllPermissions,
     requestGpsPermission,
+    requestCameraPermission,
     requestNotificationPermission
   } = usePwa();
 
@@ -53,6 +55,7 @@ export default function PermissionsPromptModal() {
   };
 
   const isGpsGranted = gpsPermission === 'granted';
+  const isCameraGranted = cameraPermission === 'granted';
   const isNotifGranted = notificationPermission === 'granted';
 
   return (
@@ -70,7 +73,7 @@ export default function PermissionsPromptModal() {
                 Field Operations Setup
               </span>
               <h3 className="text-base font-black text-white mt-1">
-                Enable Survey Permissions
+                Enable Field Permissions
               </h3>
             </div>
           </div>
@@ -83,9 +86,9 @@ export default function PermissionsPromptModal() {
         </div>
 
         {/* Permissions Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-3.5 max-h-[75vh] overflow-y-auto">
           <p className="text-xs text-slate-300 leading-relaxed">
-            To perform live Route Risk Assessments, GPS corridor tracing, and receive critical HSE alerts, Stagecoach RRA requires the following browser permissions:
+            To perform live Route Risk Assessments, GPS corridor tracking, take live camera photos, and upload evidence from device storage, Stagecoach RRA requires:
           </p>
 
           {/* Feedback message */}
@@ -101,7 +104,7 @@ export default function PermissionsPromptModal() {
           )}
 
           {/* Permission 1: GPS Geolocation */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
                 isGpsGranted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
@@ -110,16 +113,16 @@ export default function PermissionsPromptModal() {
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h4 className="text-xs font-bold text-white">Live GPS Geolocation</h4>
+                  <h4 className="text-xs font-bold text-white">1. Live GPS Geolocation</h4>
                   {isGpsGranted && (
                     <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded border border-emerald-500/40 flex items-center space-x-0.5">
                       <Check className="w-2.5 h-2.5" />
-                      <span>Enabled</span>
+                      <span>Active</span>
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Real-time route tracing, speed calculation & hazard pin accuracy
+                  Continuous corridor tracing & automatic map follow
                 </p>
               </div>
             </div>
@@ -138,8 +141,66 @@ export default function PermissionsPromptModal() {
             )}
           </div>
 
-          {/* Permission 2: Notifications */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+          {/* Permission 2: Camera (Front & Back) */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                isCameraGranted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+              }`}>
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-bold text-white">2. Device Camera (Front & Back)</h4>
+                  {isCameraGranted && (
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded border border-emerald-500/40 flex items-center space-x-0.5">
+                      <Check className="w-2.5 h-2.5" />
+                      <span>Active</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Live viewfinder & front/rear lens switching for risk photos
+                </p>
+              </div>
+            </div>
+
+            {!isCameraGranted && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await usePwa().requestCameraPermission();
+                  if (!res.success && res.error) setFeedbackMsg(res.error);
+                }}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition shrink-0 cursor-pointer"
+              >
+                Allow Camera
+              </button>
+            )}
+          </div>
+
+          {/* Permission 3: Device Storage / Gallery */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-800 text-sky-400">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-bold text-white">3. Device Storage & Gallery</h4>
+                  <span className="text-[9px] bg-sky-500/20 text-sky-300 font-extrabold px-1.5 py-0.2 rounded border border-sky-500/40">
+                    Ready
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Upload stored hazard photos & audit documents
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Permission 4: Notifications */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
                 isNotifGranted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'
@@ -148,16 +209,16 @@ export default function PermissionsPromptModal() {
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h4 className="text-xs font-bold text-white">Safety Push Notifications</h4>
+                  <h4 className="text-xs font-bold text-white">4. Safety Push Notifications</h4>
                   {isNotifGranted && (
                     <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded border border-emerald-500/40 flex items-center space-x-0.5">
                       <Check className="w-2.5 h-2.5" />
-                      <span>Enabled</span>
+                      <span>Active</span>
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Instant alerts for high-risk hazards & route review assignments
+                  Immediate alerts for high-risk hazards & sign-offs
                 </p>
               </div>
             </div>
