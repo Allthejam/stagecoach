@@ -659,8 +659,12 @@ export default function LeafletMap() {
             accuracyCircleRef.current.setLatLng(posCoord);
             accuracyCircleRef.current.setRadius(accuracy || 15);
           }
+          if (accuracy && accuracy > 5000) {
+            showToast(`PC Location (ISP Hub): [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy / 1000)}km). Note: Mobile phones in the field use real satellite GPS (2-5m accuracy).`);
+          } else {
+            showToast(`Located: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy || 5)}m)`);
+          }
         }
-        showToast(`Located: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}] (±${Math.round(accuracy || 5)}m)`);
       },
       (err) => {
         setIsLocating(false);
@@ -1003,11 +1007,11 @@ export default function LeafletMap() {
                 </div>
               )}
 
-              {/* === MAP CONTAINER VIEWPORT (100% Edge-to-Edge in Fullscreen) === */}
-              <div className={`relative ${
+              {/* === MAP CONTAINER VIEWPORT (100% Fullscreen via absolute inset-0) === */}
+              <div className={`${
                 isFullscreen 
-                  ? 'w-full h-full' 
-                  : 'w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-slate-200 shadow-inner'
+                  ? 'absolute inset-0 w-full h-full min-h-screen z-10' 
+                  : 'relative w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-slate-200 shadow-inner'
               }`}>
                 
                 {/* 1. TOP-LEFT HUD */}
